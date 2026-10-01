@@ -185,8 +185,11 @@ NeuroTrace-AI/
 │
 ├── src/
 │   ├── ai_model/                    # Machine learning research
+│   │   ├── feature_extractor.py     #   Canvas stroke → clinical kinematic features
+│   │   ├── requirements.txt         #   pandas · numpy · scipy · matplotlib · seaborn
 │   │   ├── notebooks/               #   Jupyter experiments & EDA
-│   │   ├── scripts/                 #   train.py · evaluate.py · quantize.py
+│   │   ├── scripts/                 #   parkinson_data_loader.py · data_augmentor.py
+│   │   │                            #   · train.py · evaluate.py · quantize.py
 │   │   ├── configs/                 #   Hyperparameter files (YAML)
 │   │   ├── checkpoints/             #   Training checkpoints (gitignored)
 │   │   └── exports/                 #   TFLite exports (gitignored)
@@ -224,7 +227,7 @@ NeuroTrace-AI/
 └── init_project.bat                 # Windows scaffolding script
 ```
 
-> **Tiếng Việt:** `docs/` chứa tài liệu nghiên cứu; `src/frontend/` là web app React; `src/backend/` là FastAPI + Firebase Functions; `src/ai_model/` chứa notebook và script huấn luyện/lượng tử hóa; `src/mobile/` là lớp bọc Capacitor; `data/` **bị gitignore hoàn toàn** (không bao giờ đẩy dữ liệu lên Git); `assets/` chứa logo, banner, sơ đồ.
+> **Tiếng Việt:** `docs/` chứa tài liệu nghiên cứu; `src/frontend/` là web app React; `src/backend/` là FastAPI + Firebase Functions; `src/ai_model/` chứa bộ trích xuất đặc trưng, script sinh/tăng cường dữ liệu và script huấn luyện/lượng tử hóa; `src/mobile/` là lớp bọc Capacitor; `data/` **bị gitignore hoàn toàn** (không bao giờ đẩy dữ liệu lên Git); `assets/` chứa logo, banner, sơ đồ.
 
 <p align="right"><a href="#table-of-contents--mục-lục">Back to top</a></p>
 
@@ -280,9 +283,33 @@ uvicorn app.main:app --reload    # → http://localhost:8000/docs
 
 ```bash
 cd src/ai_model
+pip install -r requirements.txt
+
+# 1) Data: real CSV (--data-csv) or the built-in HandPD-protocol simulator
+python scripts/parkinson_data_loader.py                 # → data/processed/*.csv + 2 figures
+python scripts/parkinson_data_loader.py --quick         # fast smoke run
+
+# 2) Features: 10 clinical kinematic features from one canvas stroke
+python feature_extractor.py                             # → ALL TESTS PASSED
+
+# 3) Augment: 10 000 balanced samples (5000 healthy / 5000 PD) for training
+python scripts/data_augmentor.py                        # → data/processed/*_10k_*.npy
+
 python scripts/train.py --config configs/default.yaml
 python scripts/quantize.py       # PyTorch → INT8 TFLite
 ```
+
+All generated artefacts land in `data/` which is **gitignored** — datasets are
+never committed. / Mọi tệp sinh ra nằm trong `data/` (**đã gitignore**), không
+bao giờ commit dữ liệu.
+
+#### AI module reference · Tham chiếu nhanh module AI
+
+| File | What it does / Chức năng | Main outputs |
+| --- | --- | --- |
+| `scripts/parkinson_data_loader.py` | Loads a real dataset (`--data-csv`, schema `subject_id, group, task, t_ms, x, y`) **or** simulates the HandPD protocol: 92 subjects (18 healthy / 74 PD), 4 spiral + 4 meander each, 100 Hz. Extracts per-trial velocity, jerk, FFT tremor and curvature stability. | `data/processed/parkinson_handpd_clean.csv`, `…_features.csv`, `spiral_samples.png`, `jerk_tremor_boxplots.png` |
+| `feature_extractor.py` | `ParkinsonFeatureExtractor` turns one canvas stroke (`x, y, timestamp (ms), radius`) into 10 clinical features: micrographia index, late/early radius ratio, mean & log jerk, 4–6 Hz FFT peak + band-power ratio, pause count, velocity CV, virtual pressure index, mean velocity. | Python dict + fixed-order `feature_vector`; run it directly for the built-in 9-assertion test |
+| `scripts/data_augmentor.py` | `KinematicDataAugmentor` — `time_warp`, `gaussian_jitter`, `random_rotation`, `random_scale`, `synthetic_tremor` (4–6 Hz **perpendicular** to travel, relabels to PD). Builds a balanced 50/50 dataset of 10 000 strokes (3–4 ops each, resampled to 512 points). | `data/processed/neurotrace_augmented_10k_X.npy` `(N, 512, 3)`, `…_y.npy`, `…_meta.csv`, `augmentation_comparison.png` |
 
 > **Tiếng Việt:** Cài Git, Node.js ≥ 18 và Python ≥ 3.10 → clone repo → chạy `init_project.sh` (hoặc `init_project.bat` trên Windows) để tự động tạo toàn bộ cây thư mục → sau đó khởi động frontend (`npm run dev`), backend (`uvicorn`) và huấn luyện mô hình trong `src/ai_model/`.
 
