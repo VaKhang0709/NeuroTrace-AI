@@ -221,10 +221,10 @@ __marimo__/
 # NeuroTrace AI — project-specific ignores
 # =============================================================================
 
-# 📦 Datasets — NEVER commit data (raw, processed, or external)
+# Datasets — NEVER commit data (raw, processed, or external)
 data/
 
-# 🤖 Model artifacts — keep the folders, ignore the heavy files
+# Model artifacts — keep the folders, ignore the heavy files
 src/ai_model/checkpoints/*
 !src/ai_model/checkpoints/.gitkeep
 src/ai_model/exports/*
@@ -237,7 +237,7 @@ src/ai_model/exports/*
 *.tflite
 *.pb
 
-# 🟨 Node / React (frontend)
+# Node / React (frontend)
 node_modules/
 .vite/
 .next/
@@ -246,7 +246,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# 📱 Capacitor / mobile builds
+# Capacitor / mobile builds
 src/mobile/www/*
 !src/mobile/www/.gitkeep
 src/mobile/android/app/build/
@@ -255,7 +255,7 @@ src/mobile/android/.gradle/
 src/mobile/ios/App/Pods/
 src/mobile/ios/App/App.xcworkspace/
 
-# 🔐 Secrets — never commit keys or Firebase service accounts
+# Secrets — never commit keys or Firebase service accounts
 .env.*
 !.env.example
 firebase-service-account*.json
@@ -263,7 +263,7 @@ firebase-service-account*.json
 google-services.json
 GoogleService-Info.plist
 
-# 🖥️ OS files
+# OS files
 .DS_Store
 Thumbs.db
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-#  🧠 NeuroTrace AI — Project scaffolding script (Linux / macOS)
+#  NeuroTrace AI — Project scaffolding script (Linux / macOS)
 # -----------------------------------------------------------------------------
 #  Creates the full directory tree with .gitkeep placeholders so empty folders
 #  survive in Git. The data/ folder is created locally but is fully gitignored.
@@ -15,7 +15,7 @@ cd "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo ""
 echo "  ================================================"
-echo "   🧠 NeuroTrace AI — initializing project structure"
+echo "   NeuroTrace AI — initializing project structure"
 echo "  ================================================"
 echo ""
 
@@ -64,7 +64,7 @@ DIRS=(
 # 1) Create every directory
 for d in "${DIRS[@]}"; do
   mkdir -p "$d"
-  echo "  📁 $d"
+  echo "  [dir] $d"
 done
 
 # 2) Add .gitkeep placeholders (skip data/ — it is fully gitignored)
@@ -76,7 +76,7 @@ for d in "${DIRS[@]}"; do
 done
 
 echo ""
-echo "  ✅ Done! Directory tree:"
+echo "  Done! Directory tree:"
 echo "  -----------------------------------------------"
 if command -v tree >/dev/null 2>&1; then
   tree -a -I '.git|node_modules|.venv' --dirsfirst
@@ -84,8 +84,8 @@ else
   find . -path ./.git -prune -o -type d -print | sort | sed 's|^\./||' | sed '/^\.$/d'
 fi
 echo ""
-echo "  🚀 Next steps:"
-echo "     • Frontend : cd src/frontend && npm install && npm run dev"
-echo "     • Backend  : cd src/backend  && python -m venv .venv && pip install -r requirements.txt"
-echo "     • AI model : cd src/ai_model (Jupyter notebooks & training scripts)"
+echo "  Next steps:"
+echo "    - Frontend : cd src/frontend && npm install && npm run dev"
+echo "    - Backend  : cd src/backend  && python -m venv .venv && pip install -r requirements.txt"
+echo "    - AI model : cd src/ai_model (Jupyter notebooks & training scripts)"
 echo ""
