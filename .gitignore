@@ -216,3 +216,54 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# =============================================================================
+# NeuroTrace AI — project-specific ignores
+# =============================================================================
+
+# 📦 Datasets — NEVER commit data (raw, processed, or external)
+data/
+
+# 🤖 Model artifacts — keep the folders, ignore the heavy files
+src/ai_model/checkpoints/*
+!src/ai_model/checkpoints/.gitkeep
+src/ai_model/exports/*
+!src/ai_model/exports/.gitkeep
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.h5
+*.tflite
+*.pb
+
+# 🟨 Node / React (frontend)
+node_modules/
+.vite/
+.next/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 📱 Capacitor / mobile builds
+src/mobile/www/*
+!src/mobile/www/.gitkeep
+src/mobile/android/app/build/
+src/mobile/android/build/
+src/mobile/android/.gradle/
+src/mobile/ios/App/Pods/
+src/mobile/ios/App/App.xcworkspace/
+
+# 🔐 Secrets — never commit keys or Firebase service accounts
+.env.*
+!.env.example
+firebase-service-account*.json
+*-firebase-adminsdk-*.json
+google-services.json
+GoogleService-Info.plist
+
+# 🖥️ OS files
+.DS_Store
+Thumbs.db
+
