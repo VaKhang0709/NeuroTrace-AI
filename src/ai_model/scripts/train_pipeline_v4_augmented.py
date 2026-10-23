@@ -73,7 +73,9 @@ training, so the sigmoid lives in inference, not in the graph.
  USAGE / CÁCH DÙNG (Google Colab)
 ===============================================================================
   Cell 1: paste this file (the %%writefile line creates it on Drive)
-  Cell 2: !python3 /content/drive/MyDrive/NEUROTRACE/train_pipeline_v4_augmented.py
+  Cell 2: !python3 /content/drive/MyDrive/NEUROTRACE/train_pipeline_v4_augmented.py \
+            --uci-root /content/drive/MyDrive/NEUROTRACE/external_test_data/uci_395_raw \
+            --json-root /content/drive/MyDrive/NEUROTRACE/healthy
 
   Data check only (no torch needed):   ... --audit-only
   Smoke run:                           ... --epochs 3
@@ -175,6 +177,24 @@ N_CHANNELS = len(FEATURE_NAMES)
 UCI_TRAIN_TEST_IDS = (0, 1)
 # 2 = Stability Test on Certain Point ("Circular") — excluded by spec.
 
+# Positional layout of the HEADERLESS UCI #395 text dumps, per the
+# dataset's own variable table. Most files are raw 7-column semicolon
+# dumps with NO header row at all, so name-based lookup has nothing to
+# match and every one of them used to be dropped as uci_missing_xy.
+UCI_POSITIONAL_ORDER: Tuple[str, ...] = (
+    "x", "y", "z", "pressure", "gripangle", "timestamp", "testid",
+)
+
+# Legacy locations the project used before v4 (they were the v3 defaults).
+# Kept as fallbacks so the script still finds the data if a folder was
+# never renamed, instead of silently training on zero UCI subjects.
+LEGACY_UCI_RELS: Tuple[Path, ...] = (
+    Path("external_test_data") / "uci_395_raw",
+    Path("external_test_data") / "uci_395",
+    Path("uci_raw"),
+)
+LEGACY_JSON_RELS: Tuple[Path, ...] = (Path("healthy"),)
+
 CONTROL_TOKENS = {"control", "controls", "healthy", "health", "hc", "normal", "normals", "ctl", "con"}
 PD_TOKENS = {"parkinson", "parkinsons", "pd", "pwp", "patient", "patients", "pdp", "disease", "hasta"}
 
@@ -208,6 +228,24 @@ PARTICIPANT_STRONG = {
 PARTICIPANT_PROXY = {"deviceid", "deviceuuid", "device", "installationid", "clientid", "anonymousid"}
 
 MIN_SAMPLES_PER_TRIAL = 32
+
+
+def _resolve_data_dir(root: Path, explicit: str, primary: Path,
+                      fallbacks: Sequence[Path], what: str,
+                      notes: Optional[List[str]] = None) -> Path:
+    """Pick a data directory: explicit flag > v4 path > any legacy path."""
+    if explicit:
+        return Path(explicit)
+    p = root / primary
+    if p.exists():
+        return p
+    for fb in fallbacks:
+        cand = root / fb
+        if cand.exists():
+            if notes is not None:
+                notes.append(f"{what}: {primary} not found - using legacy path {fb}")
+            return cand
+    return p
 
 
 @dataclass
@@ -273,10 +311,13 @@ class TrainConfig:
     device: str = "auto"
     verbose: bool = True
 
-    def resolved_paths(self) -> Tuple[Path, Path, Path]:
+    def resolved_paths(self, notes: Optional[List[str]] = None
+                       ) -> Tuple[Path, Path, Path]:
         root = Path(self.project_root)
-        uci = Path(self.uci_root) if self.uci_root else (root / UCI_REL)
-        js = Path(self.json_root) if self.json_root else (root / JSON_REL)
+        uci = _resolve_data_dir(root, self.uci_root, UCI_REL,
+                                LEGACY_UCI_RELS, "UCI", notes)
+        js = _resolve_data_dir(root, self.json_root, JSON_REL,
+                               LEGACY_JSON_RELS, "JSON", notes)
         models = Path(self.model_dir) if self.model_dir else (root / MODEL_REL)
         return uci, js, models
 
@@ -437,7 +478,11 @@ def read_uci_table(path: Path) -> Tuple[List[str], Dict[str, List[str]]]:
     def numeric(cell: str) -> bool:
         return bool(re.match(r"^[+-]?(\d+([.,]\d*)?|[.,]\d+)([eE][+-]?\d+)?$", cell.strip()))
 
-    has_header = any((not numeric(c)) and c.strip() != "" for c in rows[0])
+    lead = [c for c in rows[0][:4] if c.strip()]
+    if len(lead) >= 4 and all(numeric(c) for c in lead):
+        has_header = False
+    else:
+        has_header = any((not numeric(c)) and c.strip() != "" for c in rows[0])
     columns = [c.strip() for c in rows[0]] if has_header else []
     body = rows[1:] if has_header else rows
     if not columns:
@@ -457,6 +502,68 @@ def find_col(columns: Sequence[str], alias_key: str) -> Optional[str]:
         if normalise_key(c) in wanted:
             return c
     return None
+
+
+def _columns_look_numeric(columns: Sequence[str], data: Dict[str, List[str]],
+                          sample: int = 25, min_frac: float = 0.8) -> bool:
+    """True when the leading columns of a headerless table parse as numbers.
+
+    This guards the positional fallback below: a file whose first row is
+    prose is a genuinely different (and unreadable) file, not a headerless
+    numeric dump, and treating it as one would map words onto the x channel.
+    """
+    checked = 0
+    numeric = 0
+    for col in list(columns)[:4]:
+        for cell in list(data.get(col, []))[:sample]:
+            cell = (cell or "").strip()
+            if not cell:
+                continue
+            checked += 1
+            if _to_float(cell) is not None:
+                numeric += 1
+    if checked == 0:
+        return False
+    return (numeric / checked) >= min_frac
+
+
+def resolve_uci_columns(columns: Sequence[str], data: Dict[str, List[str]],
+                        stats: Optional[Counter] = None
+                        ) -> Optional[Dict[str, Optional[str]]]:
+    """Resolve the UCI columns by NAME first, then by POSITION.
+
+    The UCI #395 files are raw semicolon dumps with no header row, so the
+    reader names their fields ``col_0 ... col_6`` and no alias ever matches.
+    That is what dropped 77 of 79 files as ``uci_missing_xy``: only the two
+    files that happen to carry a header were ever parsed. When the name
+    lookup for x/y fails we fall back to the documented positional layout
+    (x, y, z, pressure, gripangle, timestamp, testid) - but only after
+    checking there are at least four columns and that they really are
+    numeric, so a text file can never be silently misread as data.
+    """
+    x_col = find_col(columns, "x")
+    y_col = find_col(columns, "y")
+    if x_col is not None and y_col is not None:
+        return {"x": x_col, "y": y_col,
+                "z": find_col(columns, "z"),
+                "pressure": find_col(columns, "pressure"),
+                "gripangle": find_col(columns, "gripangle"),
+                "timestamp": find_col(columns, "timestamp"),
+                "testid": find_col(columns, "testid")}
+
+    # ---- headerless fallback: map by position ----
+    if len(columns) < 4 or not _columns_look_numeric(columns, data):
+        return None
+
+    named: Dict[str, Optional[str]] = {role: None for role in UCI_POSITIONAL_ORDER}
+    for i, role in enumerate(UCI_POSITIONAL_ORDER):
+        if i < len(columns):
+            named[role] = columns[i]
+    if stats is not None:
+        stats["uci_positional_fallback"] += 1
+        if len(columns) < len(UCI_POSITIONAL_ORDER):
+            stats["uci_no_test_id_column"] += 1
+    return named
 
 
 def repair_time_axis(t: np.ndarray) -> Tuple[Optional[np.ndarray], int, float]:
@@ -592,13 +699,14 @@ def load_uci_trials(root: Path, cfg: TrainConfig, stats: Counter) -> List[RawTri
                 stats["uci_unreadable_files"] += 1
                 continue
 
-            x_col = find_col(columns, "x")
-            y_col = find_col(columns, "y")
-            t_col = find_col(columns, "timestamp")
-            test_col = find_col(columns, "testid")
-            if not (x_col and y_col):
+            # Name lookup first; headerless files fall back to the
+            # positional UCI #395 layout (see resolve_uci_columns).
+            resolved = resolve_uci_columns(columns, data, stats)
+            if resolved is None:
                 stats["uci_missing_xy"] += 1
                 continue
+            x_col, y_col = resolved["x"], resolved["y"]
+            t_col, test_col = resolved["timestamp"], resolved["testid"]
 
             n_rows = len(data[x_col])
             if n_rows < MIN_SAMPLES_PER_TRIAL:
@@ -606,8 +714,8 @@ def load_uci_trials(root: Path, cfg: TrainConfig, stats: Counter) -> List[RawTri
                 continue
 
             def col_to_array(key: str) -> np.ndarray:
-                c = find_col(columns, key)
-                if c is None:
+                c = resolved.get(key)
+                if c is None or c not in data:
                     return np.full(n_rows, np.nan)
                 return np.array([_to_float(v) for v in data[c]], dtype=float)
 
@@ -1744,9 +1852,12 @@ def print_dataset_summary(bundle: Dict[str, Any], table: Dict[str, Dict[str, Any
     n_angles = len(cfg.rotation_angles) if cfg.augment_train else 0
     kv("train expansion", f"x{1 + n_angles}  (1 original + {n_angles} rotated)")
     total = stats.get("windows_kept", 0)
-    flag = "OK" if total >= cfg.min_samples else "BELOW TARGET"
+    aug_total = total * (1 + n_angles)
+    kv("augmented windows (x{})".format(1 + n_angles),
+       f"{human(aug_total)} samples  ({human(total)} sliced windows x {1 + n_angles})")
+    flag = "OK" if aug_total >= cfg.min_samples else "BELOW TARGET"
     kv("total samples vs target",
-       f"{human(total)} / {human(cfg.min_samples)}  [{flag}]")
+       f"{human(aug_total)} / {human(cfg.min_samples)}  [{flag}]")
 
     per_source_label: Counter = Counter()
     trials_per_source_label: Counter = Counter()
@@ -2120,7 +2231,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         device=args.device, verbose=not args.quiet,
     )
 
-    uci_root, json_root, model_dir = cfg.resolved_paths()
+    path_notes: List[str] = []
+    uci_root, json_root, model_dir = cfg.resolved_paths(path_notes)
     set_seed(cfg.seed)
     device = get_device(cfg.device)
 
@@ -2135,6 +2247,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     print(f" UCI root     : {uci_root}")
     print(f" JSON root    : {json_root}")
     print(f" model dir    : {model_dir}")
+    for note in path_notes:
+        print(f" note         : {note}")
     print("\n RESEARCH PROTOTYPE — a statistical risk indicator, NOT a diagnosis.")
 
     if not HAS_TORCH and not cfg.audit_only:
