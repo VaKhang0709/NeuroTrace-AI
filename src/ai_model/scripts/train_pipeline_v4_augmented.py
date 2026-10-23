@@ -459,11 +459,16 @@ def normalise_test_id(raw: str) -> Optional[int]:
 
 
 def read_uci_table(path: Path) -> Tuple[List[str], Dict[str, List[str]]]:
-    """Semicolon-first delimited reader with header auto-detection."""
+    """Semicolon-first delimited reader with comment skipping & header auto-detection."""
     text = read_text_safely(path)
     if not text.strip():
         return [], {}
-    lines = [ln for ln in text.splitlines() if ln.strip()]
+    lines = [
+        ln for ln in text.splitlines()
+        if ln.strip()
+        and not ln.lstrip().startswith(("#", "//"))
+        and not ln.strip().startswith("Dataset is delimited")
+    ]
     if not lines:
         return [], {}
 
@@ -478,16 +483,25 @@ def read_uci_table(path: Path) -> Tuple[List[str], Dict[str, List[str]]]:
     def numeric(cell: str) -> bool:
         return bool(re.match(r"^[+-]?(\d+([.,]\d*)?|[.,]\d+)([eE][+-]?\d+)?$", cell.strip()))
 
+    width = max(len(r) for r in rows)
+    while len(rows) > 1 and width >= 4 and len(rows[0]) == 1 and not numeric(rows[0][0]):
+        rows = rows[1:]
+        width = max(len(r) for r in rows)
+
     lead = [c for c in rows[0][:4] if c.strip()]
     if len(lead) >= 4 and all(numeric(c) for c in lead):
         has_header = False
     else:
         has_header = any((not numeric(c)) and c.strip() != "" for c in rows[0])
-    columns = [c.strip() for c in rows[0]] if has_header else []
-    body = rows[1:] if has_header else rows
-    if not columns:
-        width = max(len(r) for r in rows)
+
+    if has_header:
+        columns = [c.strip() or f"col_{i}" for i, c in enumerate(rows[0])]
+        if len(columns) < width:
+            columns.extend(f"col_{i}" for i in range(len(columns), width))
+        body = rows[1:]
+    else:
         columns = [f"col_{i}" for i in range(width)]
+        body = rows
 
     data: Dict[str, List[str]] = {c: [] for c in columns}
     for row in body:
@@ -504,17 +518,18 @@ def find_col(columns: Sequence[str], alias_key: str) -> Optional[str]:
     return None
 
 
-def _columns_look_numeric(columns: Sequence[str], data: Dict[str, List[str]],
-                          sample: int = 25, min_frac: float = 0.8) -> bool:
-    """True when the leading columns of a headerless table parse as numbers.
+def _count_numeric_columns(columns: Sequence[str], data: Dict[str, List[str]],
+                           sample: int = 25, min_frac: float = 0.8) -> int:
+    """Count how many columns in ``columns`` contain numeric values.
 
-    This guards the positional fallback below: a file whose first row is
-    prose is a genuinely different (and unreadable) file, not a headerless
-    numeric dump, and treating it as one would map words onto the x channel.
+    This guards positional fallback: prose files (such as ``readme.txt``) have
+    zero numeric columns and are safely rejected, whereas raw 4..7-column
+    UCI #395 dumps have >= 4 numeric columns even without a header row.
     """
-    checked = 0
-    numeric = 0
-    for col in list(columns)[:4]:
+    n_numeric_cols = 0
+    for col in columns:
+        checked = 0
+        numeric = 0
         for cell in list(data.get(col, []))[:sample]:
             cell = (cell or "").strip()
             if not cell:
@@ -522,43 +537,51 @@ def _columns_look_numeric(columns: Sequence[str], data: Dict[str, List[str]],
             checked += 1
             if _to_float(cell) is not None:
                 numeric += 1
-    if checked == 0:
-        return False
-    return (numeric / checked) >= min_frac
+        if checked > 0 and (numeric / checked) >= min_frac:
+            n_numeric_cols += 1
+    return n_numeric_cols
 
 
 def resolve_uci_columns(columns: Sequence[str], data: Dict[str, List[str]],
                         stats: Optional[Counter] = None
                         ) -> Optional[Dict[str, Optional[str]]]:
-    """Resolve the UCI columns by NAME first, then by POSITION.
+    """Resolve UCI #395 columns by header name first, then positional fallback.
 
-    The UCI #395 files are raw semicolon dumps with no header row, so the
-    reader names their fields ``col_0 ... col_6`` and no alias ever matches.
-    That is what dropped 77 of 79 files as ``uci_missing_xy``: only the two
-    files that happen to carry a header were ever parsed. When the name
-    lookup for x/y fails we fall back to the documented positional layout
-    (x, y, z, pressure, gripangle, timestamp, testid) - but only after
-    checking there are at least four columns and that they really are
-    numeric, so a text file can never be silently misread as data.
+    Raw UCI #395 files carry no header row and use the 7-column positional layout:
+      col_0 -> x
+      col_1 -> y
+      col_2 -> z (if available)
+      col_3 -> pressure
+      col_4 -> gripangle (if 5+ cols available)
+      col_5 -> timestamp (if 6+ cols available)
+      col_6 -> testid    (if 7+ cols available: 0 = static spiral, 1 = dynamic spiral)
     """
     x_col = find_col(columns, "x")
     y_col = find_col(columns, "y")
     if x_col is not None and y_col is not None:
-        return {"x": x_col, "y": y_col,
-                "z": find_col(columns, "z"),
-                "pressure": find_col(columns, "pressure"),
-                "gripangle": find_col(columns, "gripangle"),
-                "timestamp": find_col(columns, "timestamp"),
-                "testid": find_col(columns, "testid")}
+        return {
+            "x": x_col,
+            "y": y_col,
+            "z": find_col(columns, "z"),
+            "pressure": find_col(columns, "pressure"),
+            "gripangle": find_col(columns, "gripangle"),
+            "timestamp": find_col(columns, "timestamp"),
+            "testid": find_col(columns, "testid"),
+        }
 
-    # ---- headerless fallback: map by position ----
-    if len(columns) < 4 or not _columns_look_numeric(columns, data):
+    # ---- headerless fallback: require >= 4 numerical columns ----
+    if len(columns) < 4 or _count_numeric_columns(columns, data) < 4:
         return None
 
-    named: Dict[str, Optional[str]] = {role: None for role in UCI_POSITIONAL_ORDER}
-    for i, role in enumerate(UCI_POSITIONAL_ORDER):
-        if i < len(columns):
-            named[role] = columns[i]
+    named: Dict[str, Optional[str]] = {
+        "x": columns[0],
+        "y": columns[1],
+        "z": columns[2] if len(columns) >= 3 else None,
+        "pressure": columns[3] if len(columns) >= 4 else None,
+        "gripangle": columns[4] if len(columns) >= 5 else None,
+        "timestamp": columns[5] if len(columns) >= 6 else None,
+        "testid": columns[6] if len(columns) >= 7 else None,
+    }
     if stats is not None:
         stats["uci_positional_fallback"] += 1
         if len(columns) < len(UCI_POSITIONAL_ORDER):
@@ -746,11 +769,13 @@ def load_uci_trials(root: Path, cfg: TrainConfig, stats: Counter) -> List[RawTri
             if test_col is not None:
                 raw_ids = [normalise_test_id(v) for v in data[test_col]]
             else:
-                inferred = normalise_test_id(path.stem) or normalise_test_id(str(rel))
-                raw_ids = [inferred] * n_rows
+                inferred = normalise_test_id(path.stem)
                 if inferred is None:
-                    stats["uci_no_test_id"] += 1
-                    continue
+                    inferred = normalise_test_id(str(rel))
+                if inferred is None:
+                    inferred = 0
+                    stats["uci_defaulted_test_id"] += 1
+                raw_ids = [inferred] * n_rows
 
             subject = f"uci::{normalise_subject_code(path.stem)}"
             for tid, i0, i1 in contiguous_runs(raw_ids):
@@ -1582,7 +1607,6 @@ def subject_metrics(y_true: np.ndarray, probs: np.ndarray, threshold: float = 0.
     preds = (probs >= threshold).astype(int)
     out["accuracy"] = float(accuracy_score(y_true, preds))
     out["f1"] = float(f1_score(y_true, preds, zero_division=0))
-    out["precision"] = float(accuracy_score(y_true, preds))  # placeholder, replaced below
 
     tn = fp = fn = tp = 0
     cm = confusion_matrix(y_true, preds, labels=[0, 1])
@@ -1650,10 +1674,8 @@ def train_model(cfg: TrainConfig, X_tr: np.ndarray, y_tr: np.ndarray,
     # ---- rotation augmentation (training rows only) ----
     n_before = int(len(X_tr_s))
     if cfg.augment_train and cfg.rotation_angles and groups_tr is not None:
-        X_tr_s, y_tr, tr_groups = augment_with_rotations(
+        X_tr_s, y_tr, _ = augment_with_rotations(
             X_tr_s, y_tr, groups_tr, cfg.rotation_angles)
-    else:
-        tr_groups = groups_tr
     n_after = int(len(X_tr_s))
     if cfg.verbose and n_after != n_before:
         ang_txt = ", ".join("{:+g}\u00b0".format(a) for a in cfg.rotation_angles)
@@ -2446,7 +2468,6 @@ def main(argv: Optional[List[str]] = None) -> int:
     model_path = model_dir / MODEL_FILENAME
     scaler_path = model_dir / SCALER_FILENAME
     report_path = model_dir / REPORT_FILENAME
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     try:
         torch.save({
