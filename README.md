@@ -187,7 +187,7 @@ NeuroTrace-AI/
 │   ├── ai_model/                    # Machine learning research
 │   │   ├── feature_extractor.py     #   Canvas stroke → clinical kinematic features
 │   │   ├── requirements.txt         #   pandas · numpy · scipy · matplotlib · seaborn
-│   │   ├── notebooks/               #   Jupyter experiments & EDA
+│   │   ├── notebooks/               #   Jupyter experiments, EDA & data audits
 │   │   ├── scripts/                 #   parkinson_data_loader.py · data_augmentor.py
 │   │   │                            #   · train.py · evaluate.py · quantize.py
 │   │   ├── configs/                 #   Hyperparameter files (YAML)
@@ -310,6 +310,7 @@ bao giờ commit dữ liệu.
 | `scripts/parkinson_data_loader.py` | Loads a real dataset (`--data-csv`, schema `subject_id, group, task, t_ms, x, y`) **or** simulates the HandPD protocol: 92 subjects (18 healthy / 74 PD), 4 spiral + 4 meander each, 100 Hz. Extracts per-trial velocity, jerk, FFT tremor and curvature stability. | `data/processed/parkinson_handpd_clean.csv`, `…_features.csv`, `spiral_samples.png`, `jerk_tremor_boxplots.png` |
 | `feature_extractor.py` | `ParkinsonFeatureExtractor` turns one canvas stroke (`x, y, timestamp (ms), radius`) into 10 clinical features: micrographia index, late/early radius ratio, mean & log jerk, 4–6 Hz FFT peak + band-power ratio, pause count, velocity CV, virtual pressure index, mean velocity. | Python dict + fixed-order `feature_vector`; run it directly for the built-in 9-assertion test |
 | `scripts/data_augmentor.py` | `KinematicDataAugmentor` — `time_warp`, `gaussian_jitter`, `random_rotation`, `random_scale`, `synthetic_tremor` (4–6 Hz **perpendicular** to travel, relabels to PD). Builds a balanced 50/50 dataset of 10 000 strokes (3–4 ops each, resampled to 512 points). | `data/processed/neurotrace_augmented_10k_X.npy` `(N, 512, 3)`, `…_y.npy`, `…_meta.csv`, `augmentation_comparison.png` |
+| `notebooks/audit_real_datasets.py` | **READ-ONLY data audit (no training)** — a Google Colab cell (`%%writefile` → `/content/drive/MyDrive/NEUROTRACE/audit_real_datasets.py`). Scans every `.txt` in `external_test_data/uci_395_raw` and every `.json` in `healthy/`, counts **unique subjects** under 6 competing identity strategies (tests the "1 file = 1 subject" assumption), runs a Test-ID census (0 = Static Spiral, 1 = Dynamic Spiral, 2 = Stability/Circular), and decides whether the JSONs hold distinct `participantId`s or repeated drawings of one person. Namespaced ids keep UCI and app subjects apart in the cross-class total. Malformed files are counted, never fatal. | Console report + `audit_reports/uci_files_*.csv`, `json_files_*.csv`, `audit_summary_*.json` |
 
 > **Tiếng Việt:** Cài Git, Node.js ≥ 18 và Python ≥ 3.10 → clone repo → chạy `init_project.sh` (hoặc `init_project.bat` trên Windows) để tự động tạo toàn bộ cây thư mục → sau đó khởi động frontend (`npm run dev`), backend (`uvicorn`) và huấn luyện mô hình trong `src/ai_model/`.
 
