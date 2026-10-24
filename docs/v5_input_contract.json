@@ -1,0 +1,343 @@
+{
+  "schema_version": "1.0.0",
+  "contract_version": "v5-source-audit-1",
+  "audit_date": "2026-10-24",
+  "scope": "Source-established behavior; production artifact contract incomplete",
+  "sources": [
+    {
+      "path": "src/ai_model/scripts/train_pipeline_v5_diagnostic.py",
+      "sha256": "61fae1da2eb7e2a435377f2c74a0d518a4504b6fc9e3a3ec7ce63d3ec450e9e4"
+    },
+    {
+      "path": "src/ai_model/scripts/export_onnx_v5.py",
+      "sha256": "0283481c6172be172026b43f176c8a42ec8fa7e0e2d86e63602282d28d70ac37"
+    },
+    {
+      "path": "src/ai_model/scripts/verify_onnx_parity.py",
+      "sha256": "a404cd5a7e85fecd682ae215626edcfca8c6d3a4f1d76b4e41934e5ec2a485ab"
+    },
+    {
+      "path": "src/ai_model/scripts/expand_virtual_sessions_v5.py",
+      "sha256": "0f3812c43bc75582c39315a385c1ab061584ea321bd3c119f5d17bacb5269f5b"
+    },
+    {
+      "path": "src/data/preprocessor.py",
+      "sha256": "fcec41bfa72101465c4bc75d96edeaea5fafba2b1b6331355c0dbfbd8ce344ce"
+    },
+    {
+      "path": "src/export/export_onnx.py",
+      "sha256": "d091d60d48acb23cbe8379404f01a6a64fd434930f92abc7cc9848ccd2057002"
+    },
+    {
+      "path": "src/eval/verify_parity.py",
+      "sha256": "4c7648e4bd7f20abbad620f29ada24608f9d60b84eda44d0b4e029c4a80061c6"
+    }
+  ],
+  "artifacts": {
+    "production_checkpoint": {
+      "status": "UNAVAILABLE",
+      "value": null
+    },
+    "onnx": {
+      "status": "UNAVAILABLE",
+      "value": null
+    },
+    "scaler_config": {
+      "status": "UNAVAILABLE",
+      "value": null
+    },
+    "real_input_sample": {
+      "status": "UNAVAILABLE",
+      "value": null
+    },
+    "split_reports": {
+      "status": "UNAVAILABLE",
+      "value": null
+    },
+    "virtual_parent_map": {
+      "status": "UNAVAILABLE",
+      "value": null
+    }
+  },
+  "production_values": {
+    "mean": null,
+    "scale": null,
+    "input_name": null,
+    "output_name": null,
+    "shape": null,
+    "threshold": null
+  },
+  "findings": [
+    {
+      "id": "raw_coordinates",
+      "status": "UNKNOWN",
+      "assertion": "Loaders copy numeric x/y directly; no source-unit, origin, axis direction, DPI or canvas-size conversion is specified. Physical Wacom units and actual app coordinate convention cannot be established without raw metadata.",
+      "evidence": [
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L337-411",
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L414-465"
+      ]
+    },
+    {
+      "id": "time_repair",
+      "status": "VERIFIED",
+      "assertion": "repair_time_axis chooses scale from median positive raw increment: >50000 -> 1e-6; otherwise >0.5 -> 1e-3; else 1. It subtracts first timestamp and replaces nonpositive or >20*median increments by median. This is heuristic seconds conversion, not proof of original units.",
+      "evidence": [
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L311-334"
+      ]
+    },
+    {
+      "id": "time_fallback",
+      "status": "VERIFIED",
+      "assertion": "UCI missing timestamp column uses index/133; app completely unusable timestamps use index/60 and synthetic_time flag. Partial NaNs may propagate through repair_time_axis and be removed later.",
+      "evidence": [
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L370-380",
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L450-465",
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L488-490"
+      ]
+    },
+    {
+      "id": "uci_segmentation",
+      "status": "VERIFIED",
+      "assertion": "UCI splits only contiguous test-ID runs (SST/DST/STCP); runs need >=24 samples and repaired duration >=0.4s. No explicit pen-up split is used. Subject identity comes from normalized file stem.",
+      "evidence": [
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L204-208",
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L384-411"
+      ]
+    },
+    {
+      "id": "app_strokes",
+      "status": "VERIFIED",
+      "assertion": "Nested stroke points are flattened in input order into one record/trial, losing pen-up boundaries. No explicit sort by time or pen-up gap segmentation; gaps are time-repaired then interpolated. Records require >=20 points, duration >=0.4s.",
+      "evidence": [
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L414-465",
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L467-525"
+      ]
+    },
+    {
+      "id": "sample_trace",
+      "status": "UNKNOWN",
+      "assertion": "No real raw trajectory is available in this workspace. A numerical REAL-sample trace (raw to final tensor) cannot be produced; synthetic regression fixtures are not real participant evidence.",
+      "evidence": [
+        "workspace inventory recorded in docs/v5_input_contract.md#artifact-availability"
+      ]
+    },
+    {
+      "id": "finite_and_dt",
+      "status": "VERIFIED",
+      "assertion": "Drop samples whose x/y/t are nonfinite; require >=20. Raw dt=diff(t), first dt copied from second. Require >=16 positive dt values; nonpositive dt replaced by median. Rebuilt t_clean cumulatively clips subsequent dt to [0.05*median,10*median]. Reject duration <0.4s.",
+      "evidence": [
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L610-633"
+      ]
+    },
+    {
+      "id": "grid",
+      "status": "MISMATCH",
+      "assertion": "Nominal 100 Hz grid uses n=max(48,round(duration*100)+1), tg=linspace(0,duration,n). Actual interval is duration/(n-1), not necessarily 0.01 seconds (especially minimum 48 points). A fixed exact 100 Hz browser grid is not identical.",
+      "evidence": [
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L633-635"
+      ]
+    },
+    {
+      "id": "filter",
+      "status": "VERIFIED",
+      "assertion": "Fourth-order 12 Hz low-pass Butterworth SOS designed with fs=100; sosfiltfilt zero-phase applied to linearly interpolated x,y,raw repaired dt on tg. Real pressure also filtered later. z is interpolated but not filtered. Proxy pressure and velocity are not explicitly low-pass filtered after derivation.",
+      "evidence": [
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L63",
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L635-657"
+      ]
+    },
+    {
+      "id": "trial_spatial",
+      "status": "VERIFIED",
+      "assertion": "Filtered x/y centered by whole-trial medians for radius r0. sc0=95th percentile radius (fallback 1 if <=1e-9/nonfinite). This trial scale is used in velocity and z; final window x/y use separate normalization.",
+      "evidence": [
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L638-650"
+      ]
+    },
+    {
+      "id": "velocity",
+      "status": "VERIFIED",
+      "assertion": "vx,vy=gradient((filtered_position-trial_median)/sc0,0.01); speed=hypot(vx,vy). It is computed AFTER interpolation/filtering, BEFORE window extraction/256 interpolation, with fixed 0.01 derivative spacing even if tg spacing differs. Units are trial-scale-normalized displacement per nominal second, NOT raw pixels/s.",
+      "evidence": [
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L638-652"
+      ]
+    },
+    {
+      "id": "pressure",
+      "status": "VERIFIED",
+      "assertion": "Use real pressure only if trial.has_real_pressure and finite pressure with >=4 distinct rounded(4dp) values; loaders impose finite-count requirements. Fill missing pressure by median, interpolate and filter. Else proxy uses full-trial speed min-max (epsilon 1e-6): 0.65*(1-0.35*s_norm)+0.15*clip(r0/sc0,0,1.5). No pointer-type check or event-local speed normalization is used.",
+      "evidence": [
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L399-402",
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L514-515",
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L583-586",
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L651-657"
+      ]
+    },
+    {
+      "id": "windows",
+      "status": "VERIFIED",
+      "assertion": "Stack [x,y,z,pressure,speed,filtered_dt] as (time,6). Window length default 256, stride 64; >=24 samples, short windows retained, append last full window at n-window if not aligned. Linear interpolation by normalized sample index to 256, not a second timestamp-aware interpolation.",
+      "evidence": [
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L136-139",
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L589-608",
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L658-663"
+      ]
+    },
+    {
+      "id": "window_normalization",
+      "status": "VERIFIED",
+      "assertion": "After 256 interpolation: x/y subtract window mean, divide both by sqrt(mean(wx^2+wy^2)); skip <=1e-8. Pressure=(p-mean(p))/(std(p)+1e-5). dt=(filtered_dt-median(filtered_dt))/(median(filtered_dt)+1e-6). Speed unchanged; z retained if selected. Final dt is a dimensionless relative interval, not raw seconds or milliseconds.",
+      "evidence": [
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L663-674"
+      ]
+    },
+    {
+      "id": "features",
+      "status": "UNKNOWN",
+      "assertion": "Code canonical order [x,y,z,pressure,velocity,dt], selection drops configured channel indices preserving order. A five-channel drop-z run implies [x,y,pressure,velocity,dt], but actual production feature order requires unavailable checkpoint feature_names/scaler JSON. Defaults do NOT drop z.",
+      "evidence": [
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L58",
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L125",
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L724-725",
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L1339-1356"
+      ]
+    },
+    {
+      "id": "scaler",
+      "status": "UNKNOWN",
+      "assertion": "Actual production mean and scale values are unavailable. Code fits sklearn StandardScaler on training-only windows transposed (N,L,C) and flattened (N*L,C), then restores (N,C,L) float32. No per-browser-drawing fit is permitted by this algorithm.",
+      "evidence": [
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L943-954",
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L1027-1029",
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L1354-1355"
+      ]
+    },
+    {
+      "id": "tensor_layout",
+      "status": "VERIFIED",
+      "assertion": "Training arrays are logical N,C,L float32. Export dummy uses (1,checkpoint in_channels,checkpoint seq_len); batch dynamic. Browser Float32Array must be channel-major: offset=(batch*C+channel)*L+time. Logical axes, not a requirement that all NumPy views be physically contiguous.",
+      "evidence": [
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L663-674",
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L757-768",
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L943-954",
+        "src/ai_model/scripts/export_onnx_v5.py:L72-94"
+      ]
+    },
+    {
+      "id": "onnx_contract",
+      "status": "UNKNOWN",
+      "assertion": "Original exporter requests input named input, output logits, dynamic batch and fixed C,L from checkpoint; model.forward emits (B,) raw logits. Actual serialized ONNX graph names/shapes/weights are unavailable and not inspected. Requested export: opset17, dynamo=False, do_constant_folding=True, eval before/after.",
+      "evidence": [
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L872-886",
+        "src/ai_model/scripts/export_onnx_v5.py:L65-101",
+        "src/ai_model/scripts/export_onnx_v5.py:L121-138"
+      ]
+    },
+    {
+      "id": "aggregation_threshold",
+      "status": "VERIFIED",
+      "assertion": "Code evaluates mean per-window sigmoid probability per parent subject at cfg.threshold default 0.50; this is not sigmoid(mean(logits)). Training shifts clinical bias by a training-set-only calibrated logit boundary, so output is not guaranteed clinically calibrated probability. Actual production metadata threshold UNKNOWN; not changed here.",
+      "evidence": [
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L140",
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L966-975",
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L1129-1145",
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L1356"
+      ]
+    },
+    {
+      "id": "parent_mapping",
+      "status": "VERIFIED",
+      "assertion": "Virtual session writer stores parent_subject_id and map; loader takes map entry (fallback embedded parent). Dataset buckets all windows by parent, caps real and virtual separately, drops virtual-only parents without real windows. This is code intent, not validation of unavailable actual parent map.",
+      "evidence": [
+        "src/ai_model/scripts/expand_virtual_sessions_v5.py:L229-245",
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L528-575",
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L707-753"
+      ]
+    },
+    {
+      "id": "split_guards",
+      "status": "VERIFIED",
+      "assertion": "Holdout stratifies parent IDs by (source,label). CV excludes holdout; GroupKFold operates on parent IDs. Training masks select all windows of training parents, validation/holdout select only real windows of held-out parents. Assertions check parent disjointness. Scalers fit only training fold; online rotations happen only to training batches.",
+      "evidence": [
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L906-954",
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L1027-1029",
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L1074-1082",
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L1261-1281",
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L1306-1318"
+      ]
+    },
+    {
+      "id": "split_limitations",
+      "status": "UNKNOWN",
+      "assertion": "Actual executed partitions and aliases cannot be verified without reports/maps/data. Filename/record-derived IDs may alias one person. No cross-source identity linkage. GroupKFold is not stratified; shuffling subject order need not yield different repeated partitions with default GroupKFold. Window overlap is acceptable only with correct parent identity. Validation selects epochs for nonadversarial runs, so CV is not an untouched test estimate.",
+      "evidence": [
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L204-208",
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L384",
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L493-506",
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L926-940",
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L1109-1128"
+      ]
+    },
+    {
+      "id": "probe_limitations",
+      "status": "VERIFIED",
+      "assertion": "Device probe trains logistic regressions on frozen final-model embeddings using subject-grouped 5-fold CV, primarily HC-only. Encoder/scaler are NOT refit per probe fold; bundle includes final-model training and holdout parents, and probe AUC is computed over windows. Thus this is not fully nested unseen-subject representation evaluation and cannot establish domain invariance.",
+      "evidence": [
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L1148-1201",
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L1328"
+      ]
+    },
+    {
+      "id": "device_label",
+      "status": "UNKNOWN",
+      "assertion": "Loader supports app PD labels but defaults absent/unrecognized labels to HC. Actual device-by-label counts are unavailable. If observed PD are all Wacom and mobile data only HC, mobile-PD sensitivity cannot be measured regardless of device-probe AUC; HC-only device discrimination is not mobile-PD clinical validation.",
+      "evidence": [
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L508-515",
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L1170-1184"
+      ]
+    },
+    {
+      "id": "browser_comparison",
+      "status": "UNKNOWN",
+      "assertion": "No deployed browser bundle was found or audited. A browser using raw pixel velocity, raw dt Z-score only, per-event pressure normalization, or no filtering/window normalization would mismatch the source algorithm; this is conditional, not a finding about the live app.",
+      "evidence": [
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L610-674"
+      ]
+    },
+    {
+      "id": "module_scope",
+      "status": "MISMATCH",
+      "assertion": "Modular V5Preprocessor accepts already-repaired strictly increasing seconds, whereas original raw loaders repair/reset times and may synthesize them. It is not an end-to-end raw loader replacement. Passing its limited synthetic comparison cannot establish artifact or browser parity. Modular loader enforces five channels; original architecture/export are configurable.",
+      "evidence": [
+        "src/data/preprocessor.py:L111-148",
+        "src/export/export_onnx.py:L12-25",
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L311-334"
+      ]
+    },
+    {
+      "id": "parity",
+      "status": "UNKNOWN",
+      "assertion": "No production held-out parity run performed: production weights, ONNX, scaler, real held-out inputs, PyTorch and ONNX Runtime unavailable at audit start. Original parity script samples 25 windows/device, not necessarily 50 distinct subjects or held-out parents. New module optionally reads standardized real windows but does not validate holdout provenance.",
+      "evidence": [
+        "src/ai_model/scripts/verify_onnx_parity.py:L69-105",
+        "src/eval/verify_parity.py:L14-33"
+      ]
+    },
+    {
+      "id": "time_unit_ambiguity",
+      "status": "MISMATCH",
+      "assertion": "The time-unit heuristic is ambiguous: synthetic raw increments of 10000 (which could mean 10ms in microseconds) are scaled by 1e-3, yielding 10 seconds. Raw source timestamp units cannot be proven by repair_time_axis alone. No heuristic changes made.",
+      "evidence": [
+        "src/ai_model/scripts/train_pipeline_v5_diagnostic.py:L311-334",
+        "tests/test_v5_input_contract.py:test_timestamp_heuristic_seconds_and_ms"
+      ]
+    }
+  ],
+  "validation": {
+    "command": "python -m pytest tests/test_v5_input_contract.py tests/test_v5_modules.py -q",
+    "passed": 8,
+    "skipped": 1,
+    "skip_reason": "PyTorch unavailable; architecture check skipped",
+    "production_parity": "NOT_RUN"
+  }
+}
