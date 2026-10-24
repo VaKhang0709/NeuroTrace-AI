@@ -56,7 +56,17 @@ def features(trial):
     cutoff=min(CUTOFF[trial.domain],.45*rate)
     sos=butter(4,cutoff,fs=100,output='sos')
     def channel(v):
-        return sosfiltfilt(sos,CubicSpline(t,v)(grid))
+        if rate>100.5:
+            # Anti-alias BEFORE downsampling: reconstruct source-rate uniform
+            # samples, low-pass at 45 Hz, then cubic-interpolate to 100 Hz.
+            source_grid=np.linspace(0,t[-1],int(np.floor(t[-1]*rate))+1)
+            source_fs=(len(source_grid)-1)/t[-1]
+            aa=butter(4,45.,fs=source_fs,output='sos')
+            uniform=sosfiltfilt(aa,CubicSpline(t,v)(source_grid))
+            values=CubicSpline(source_grid,uniform)(grid)
+        else:
+            values=CubicSpline(t,v)(grid)
+        return sosfiltfilt(sos,values)
     x,y=channel(a[:,0]),channel(a[:,1])
     x-=np.median(x); y-=np.median(y)
     spatial=np.percentile(np.hypot(x,y),95)

@@ -127,15 +127,16 @@ def train_fold(model,train_loader,val_loader,output,epochs=200,patience=20,
     rng=np.random.default_rng(seed); accumulation=max(1,int(np.ceil(effective_batch/train_loader.batch_size)))
     best=-float('inf'); stale=0; top=[]; writer=SummaryWriter(str(output/'tensorboard'))
     with (output/'epochs.csv').open('w',newline='') as f:
-        log=csv.DictWriter(f,fieldnames=['epoch','loss','val_subject_auc','lr']); log.writeheader()
+        log=csv.DictWriter(f,fieldnames=['epoch','loss','val_subject_auc','lr','synthetic_windows']); log.writeheader()
         for epoch in range(epochs):
             if epoch<5:
                 for group in opt.param_groups: group['lr']=3e-4*(epoch+1)/5
             else: scheduler.step(epoch-5)
-            model.train(); criterion.train(); opt.zero_grad(set_to_none=True); losses=[]
+            model.train(); criterion.train(); opt.zero_grad(set_to_none=True); losses=[]; synthetic_windows=0
             for step,batch in enumerate(train_loader):
                 batch={k:v.to(device) if torch.is_tensor(v) else v for k,v in batch.items()}
                 batch=mix_batch(batch,rng,probabilities)
+                synthetic_windows+=int(batch['synthetic'].sum())
                 group_start=(step//accumulation)*accumulation
                 group_size=min(accumulation,len(train_loader)-group_start)
                 with torch.autocast(device_type='cuda' if amp else 'cpu',enabled=amp):
@@ -151,6 +152,7 @@ def train_fold(model,train_loader,val_loader,output,epochs=200,patience=20,
                  loss_state=criterion.state_dict(),optimizer_state=opt.state_dict(),scheduler_state=scheduler.state_dict(),
                  scaler_state=scaler.state_dict(),epoch=epoch,val_auc=val,seed=seed,
                  training_subjects=train_loader.dataset.subjects,validation_subjects=val_loader.dataset.subjects,
+                 ssl_subjects=getattr(model,'ssl_subjects',[]),
                  rng_state=dict(torch=torch.get_rng_state(),python=random.getstate()),
                  augmentation_probabilities=dict(probabilities or DEFAULT_PROBABILITIES))
             torch.save(checkpoint,output/'last.pth')
@@ -158,7 +160,7 @@ def train_fold(model,train_loader,val_loader,output,epochs=200,patience=20,
             top.sort(key=lambda item:item[0],reverse=True)
             for _,removed in top[3:]: removed.unlink(missing_ok=True)
             top=top[:3]
-            row=dict(epoch=epoch,loss=float(np.mean(losses)),val_subject_auc=val,lr=opt.param_groups[0]['lr'])
+            row=dict(epoch=epoch,loss=float(np.mean(losses)),val_subject_auc=val,lr=opt.param_groups[0]['lr'],synthetic_windows=synthetic_windows)
             log.writerow(row); f.flush()
             for key in ('loss','val_subject_auc','lr'): writer.add_scalar(key,row[key],epoch)
             if val>best+1e-5: best=val; stale=0
@@ -169,7 +171,7 @@ def train_fold(model,train_loader,val_loader,output,epochs=200,patience=20,
 
 
 def run(records,partition,output,epochs=200,ssl_epochs=100,batch_size=4,seed=42,
-        device=None,model_config=None,synthetic_injection=False):
+        device=None,model_config=None,synthetic_injection=False,augmentation_probabilities=None):
     seed_all(seed); dev,holdout,unlabeled=validate_partition(records,partition)
     device=device or ('cuda' if torch.cuda.is_available() else 'cpu')
     clinical=[tr for tr in records if tr.subject_id in dev and tr.label>=0]
@@ -180,6 +182,7 @@ def run(records,partition,output,epochs=200,ssl_epochs=100,batch_size=4,seed=42,
     for fold,(train_i,val_i) in enumerate(folds.split(subjects,groups=subjects)):
         train={subjects[i] for i in train_i}; valid={subjects[i] for i in val_i}
         assert not train&valid and not (train|valid|unlabeled)&holdout
+        seed_all(seed+fold)
         folder=output/f'fold_{fold}'; folder.mkdir(parents=True,exist_ok=True)
         model=TremorFormer(**(model_config or {}))
         if ssl_epochs:
@@ -187,8 +190,12 @@ def run(records,partition,output,epochs=200,ssl_epochs=100,batch_size=4,seed=42,
             ds=TrajectoryDataset(ssl_records,train|unlabeled)
             pretrain(model,DataLoader(ds,batch_size=batch_size,shuffle=True),train|unlabeled,
                      folder/'v6_pretrained_backbone.pth',epochs=ssl_epochs,device=device,seed=seed+fold)
+        model.ssl_subjects=sorted(train|unlabeled) if ssl_epochs else []
         train_records=[tr for tr in clinical if tr.subject_id in train]
-        probabilities=dict(DEFAULT_PROBABILITIES,tremor_injection=.1 if synthetic_injection else 0.)
+        probabilities=dict(DEFAULT_PROBABILITIES)
+        probabilities.update(augmentation_probabilities or {})
+        probabilities['tremor_injection']=probabilities.get('tremor_injection',.1) if synthetic_injection else 0.
+        if synthetic_injection and probabilities['tremor_injection']==0: probabilities['tremor_injection']=.1
         donors=[tr for tr in train_records if tr.label==1 and tr.domain=='wacom'] if synthetic_injection else []
         aug=Augmenter(train,donors,probabilities,seed+fold)
         train_ds=TrajectoryDataset(train_records,train,aug,seed+fold)
@@ -209,8 +216,11 @@ def main():
     p.add_argument('--epochs',type=int,default=200); p.add_argument('--ssl-epochs',type=int,default=100)
     p.add_argument('--batch-size',type=int,default=4); p.add_argument('--seed',type=int,default=42)
     p.add_argument('--synthetic-injection',action='store_true')
-    a=p.parse_args(); records=[Trajectory.from_dict(v) for v in json.loads(Path(a.records).read_text())]
+    p.add_argument('--config',help='Optional JSON model and augmentation overrides')
+    a=p.parse_args(); config=json.loads(Path(a.config).read_text()) if a.config else {}
+    records=[Trajectory.from_dict(v) for v in json.loads(Path(a.records).read_text())]
     run(records,json.loads(Path(a.partition).read_text()),a.output,a.epochs,a.ssl_epochs,a.batch_size,a.seed,
-        synthetic_injection=a.synthetic_injection)
+        synthetic_injection=a.synthetic_injection,model_config=config.get('model'),
+        augmentation_probabilities=config.get('augmentation_probabilities'))
 
 if __name__=='__main__': main()

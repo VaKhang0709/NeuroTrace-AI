@@ -30,6 +30,8 @@ def export_member(checkpoint,output,real_windows=None,seed=42):
     model,metadata=load_model(checkpoint); model.eval(); wrapper=ClinicalONNX(model).eval()
     output=Path(output); output.parent.mkdir(parents=True,exist_ok=True)
     c=model.config['in_channels']
+    fastpath=torch.backends.mha.get_fastpath_enabled()
+    torch.backends.mha.set_fastpath_enabled(False)
     try:
         with torch.no_grad():
             torch.onnx.export(wrapper,(torch.zeros(1,c,512),torch.tensor([4])),str(output),
@@ -37,6 +39,7 @@ def export_member(checkpoint,output,real_windows=None,seed=42):
                   input_names=['trajectory','device_id'],output_names=['logits'],
                   dynamic_axes={'trajectory':{0:'batch'},'device_id':{0:'batch'},'logits':{0:'batch'}})
     finally:
+        torch.backends.mha.set_fastpath_enabled(fastpath)
         wrapper.eval(); model.eval()
     onnx.checker.check_model(onnx.load(str(output)))
     session=ort.InferenceSession(str(output),providers=['CPUExecutionProvider'])
@@ -53,7 +56,7 @@ def export_member(checkpoint,output,real_windows=None,seed=42):
             runtime=session.run(['logits'],{'trajectory':x,'device_id':domain})[0]
             if pt.shape!=runtime.shape or not np.isfinite(runtime).all(): raise ValueError('Invalid ONNX output')
             maximum=max(maximum,float(np.abs(pt.astype(float)-runtime.astype(float)).max()))
-    parity=dict(tensors=100,real_validation_tensors=real_count,max_logit_error=maximum,
+    parity=dict(tensors=100,supplied_validation_tensors=real_count,max_logit_error=maximum,
                 tolerance=1e-5,passed=maximum<1e-5,
                 onnx_sha256=hashlib.sha256(output.read_bytes()).hexdigest())
     output.with_suffix('.parity.json').write_text(json.dumps(parity,indent=2))

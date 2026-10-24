@@ -24,5 +24,5 @@ def load(root):
         raise ValueError('No valid UCI trials; review parser and units')
     for tr in trials:
         a=np.column_stack([tr.x,tr.y,tr.t,tr.pressure,np.full(len(tr.x),np.nan)])
-        yield Trajectory(tr.parent_subject_id,tr.subject_id,tr.task,'wacom',a,
+        yield Trajectory(tr.parent_subject_id,tr.subject_id,'spiral','wacom',a,
                          tr.label,source='uci395',coordinate_units='tablet-native-UNKNOWN').validate()

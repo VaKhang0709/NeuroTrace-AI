@@ -31,6 +31,10 @@ class Trajectory:
             raise ValueError('Finite x/y and strictly increasing seconds required')
         if a[-1, 2] - a[0, 2] < .4:
             raise ValueError('Duration below 0.4 seconds')
+        if np.isfinite(self.updrs) and not 0<=self.updrs<=132:
+            raise ValueError('UPDRS Part III must be in [0,132] or missing')
+        if self.age_bucket not in (-1,0,1,2,3,4):
+            raise ValueError('Age bucket must be -1 (unknown) or 0..4')
         self.samples = a
         return self
 

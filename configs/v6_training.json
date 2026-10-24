@@ -1,0 +1,11 @@
+{
+  "model": {"in_channels": 19, "d_model": 256, "blocks": 6, "heads": 8,
+            "expansion": 8, "dropout": 0.1, "age_buckets": 5,
+            "grl_lambda": 0.1, "device_film": true},
+  "augmentation_probabilities": {
+    "time_warp": 0.2, "magnitude": 0.2, "jitter": 0.2, "slice": 0.2,
+    "rotation": 0.3, "elastic": 0.2, "pressure_dropout": 0.2,
+    "device_simulation": 0.2, "mixup": 0.2, "cutmix": 0.2,
+    "tremor_injection": 0.0
+  }
+}

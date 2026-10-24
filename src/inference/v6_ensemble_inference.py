@@ -43,18 +43,52 @@ class Ensemble:
                 if trial.subject_id in known: raise ValueError('Ensemble test parent appeared in development')
                 if not c.get('training_subjects') or not c.get('validation_subjects'):
                     raise ValueError('Missing checkpoint provenance')
-        all_prob=[]
+        all_prob=[]; identity_features=[]
         from src.data_loaders.schema import DOMAINS
-        for augmented in variants(trial):
+        for variant_index,augmented in enumerate(variants(trial)):
             x,_=transform(augmented); x=torch.from_numpy(x).to(self.device)
             domain=torch.full((len(x),),DOMAINS.index(trial.domain),device=self.device,dtype=torch.long)
             for model in self.models:
                 # Bound inference memory, even for long private drawings.
-                chunks=[]
+                chunks=[]; features=[]
                 for i in range(0,len(x),4):
-                    chunks.append(model.predict_proba(x[i:i+4],domain[i:i+4]).cpu().numpy())
+                    out=model(x[i:i+4],domain[i:i+4])
+                    chunks.append(torch.sigmoid(out['pd_logits']).cpu().numpy())
+                    if variant_index==0: features.append(out['features'].cpu().numpy())
                 all_prob.append(np.concatenate(chunks))
+                if variant_index==0: identity_features.append(np.concatenate(features))
         values=np.stack(all_prob)  # (50, windows)
         return dict(window_probability=values.mean(0),window_uncertainty=values.std(0),
                     trial_probability=float(values.mean()),
-                    uncertainty=float(values.mean(1).std()),predictions=int(values.shape[0]))
+                    uncertainty=float(values.mean(1).std()),predictions=int(values.shape[0]),
+                    features=np.concatenate(identity_features,axis=1))
+
+
+def main():
+    import argparse,json
+    from pathlib import Path
+    from src.data_loaders.schema import Trajectory
+    p=argparse.ArgumentParser(description=__doc__)
+    p.add_argument('--records',required=True); p.add_argument('--partition',required=True)
+    p.add_argument('--checkpoints',nargs=5,required=True); p.add_argument('--output',default='reports/private/v6_predictions.npz')
+    a=p.parse_args(); partition=json.loads(Path(a.partition).read_text())
+    allowed=set(partition['holdout_subjects'])
+    if allowed & (set(partition['development_subjects'])|set(partition.get('unlabeled_subjects',[]))):
+        raise ValueError('Partition overlap')
+    ensemble=Ensemble(a.checkpoints,device='cuda' if torch.cuda.is_available() else 'cpu')
+    collected={k:[] for k in ['probability','label','subject','domain','synthetic','features','uncertainty']}
+    for raw in json.loads(Path(a.records).read_text()):
+        tr=Trajectory.from_dict(raw)
+        if tr.subject_id not in allowed: continue
+        if tr.synthetic or tr.label not in (0,1): raise ValueError('Clinical holdout must be real, labeled')
+        result=ensemble.predict_trial(tr); n=len(result['window_probability'])
+        collected['probability'].extend(result['window_probability']); collected['features'].extend(result['features'])
+        collected['uncertainty'].extend(result['window_uncertainty'])
+        for key,value in [('label',tr.label),('subject',tr.subject_id),('domain',tr.domain),('synthetic',False)]:
+            collected[key].extend([value]*n)
+    if set(collected['subject'])!=allowed:
+        raise ValueError('Missing locked holdout parents; no silent exclusions')
+    output=Path(a.output); output.parent.mkdir(parents=True,exist_ok=True)
+    np.savez_compressed(output,**{k:np.asarray(v) for k,v in collected.items()})
+
+if __name__=='__main__': main()

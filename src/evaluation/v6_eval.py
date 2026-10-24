@@ -94,7 +94,8 @@ def report(prediction,holdout_subjects,output='reports/v6_final_evaluation.md',
     required=('probability','label','subject','domain')
     if any(k not in prediction for k in required): raise ValueError('Missing prediction columns')
     if not len(prediction['subject']): raise ValueError('No predictions')
-    if not set(prediction['subject'])<=set(holdout_subjects): raise ValueError('Non-holdout parent in clinical report')
+    if set(prediction['subject'])!=set(holdout_subjects):
+        raise ValueError('Clinical report must cover exactly the locked holdout parents; no silent exclusions')
     if 'synthetic' in prediction and np.asarray(prediction['synthetic']).any():
         raise ValueError('Synthetic samples forbidden in clinical evaluation')
     result={}; overall=None

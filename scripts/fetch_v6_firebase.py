@@ -26,6 +26,7 @@ def component(value):
 def ingest(config, report='reports/v6_data_ingestion_report.md'):
     import firebase_admin
     from firebase_admin import credentials, firestore, storage
+    from google.api_core.exceptions import GoogleAPIError
     cred = Path(config['service_account'])
     if not cred.is_file():
         raise FileNotFoundError('Authorized service account missing; no ingestion performed')
@@ -33,7 +34,22 @@ def ingest(config, report='reports/v6_data_ingestion_report.md'):
           {'storageBucket': config['storage_bucket']}, name='neurotrace-v6-ingestion')
     output = Path(config['output']); output.mkdir(parents=True, exist_ok=True)
     rows, quality, dropped = [], defaultdict(list), 0
-    seen = set()
+    seen = set(); dropped_tasks=0
+    # Append-only reruns: preserve and verify the prior manifest, never replace
+    # it with an empty manifest just because old task files already exist.
+    manifest_path=output/'manifest.csv'
+    if manifest_path.exists():
+        with manifest_path.open(newline='') as f: rows=list(csv.DictReader(f))
+        for row in rows:
+            path=Path(row['path'])
+            if not path.resolve().is_relative_to(output.resolve()):
+                raise ValueError('Existing manifest escapes output root')
+            if hashlib.sha256(path.read_bytes()).hexdigest()!=row['sha256']:
+                raise ValueError('Existing manifest checksum mismatch')
+            tr=Trajectory.from_dict(json.loads(path.read_text()))
+            quality[row['device_uuid']].append((1/np.median(np.diff(tr.samples[:,2])),
+                                                np.ptp(tr.samples[:,2]),len(tr.samples)))
+            seen.add((row['device_uuid'],row['session_id'],row['task_id']))
     try:
         for doc in firestore.client(app).collection(config.get('collection', 'v6_sessions')).stream():
             record = doc.to_dict()
@@ -53,7 +69,8 @@ def ingest(config, report='reports/v6_data_ingestion_report.md'):
                     tid = component(task['task_id'])
                     key = (device, session, tid)
                     if key in seen:
-                        raise ValueError('Duplicate task path')
+                        valid_session=True
+                        continue  # Immutable task keys: remote edits require a new task ID.
                     if 'storage_path' in task:
                         blob = storage.bucket(app=app).blob(task['storage_path'])
                         blob.reload()
@@ -77,7 +94,8 @@ def ingest(config, report='reports/v6_data_ingestion_report.md'):
                     rows.append(dict(device_uuid=device, subject_id=subject, session_id=session,
                          task_id=tid, label=tr.label, domain=tr.domain, path=str(path),
                          sha256=hashlib.sha256(path.read_bytes()).hexdigest()))
-                except (KeyError, ValueError, TypeError, OSError):
+                except (KeyError, ValueError, TypeError, OSError, GoogleAPIError):
+                    dropped_tasks+=1
                     continue
             if not valid_session:
                 dropped += 1
@@ -91,7 +109,7 @@ def ingest(config, report='reports/v6_data_ingestion_report.md'):
                 total_duration=float(np.array(v)[:,1].sum()), points=int(np.array(v)[:,2].sum()))
                 for device,v in quality.items()}
     (output/'quality_by_device.json').write_text(json.dumps(private, indent=2))
-    text = f'# V6 ingestion\n\nAccepted tasks: {len(rows)}. Devices: {len(quality)}. Dropped/invalid sessions: {dropped}.\n'
+    text = f'# V6 ingestion\n\nAccepted tasks: {len(rows)}. Devices: {len(quality)}. Dropped/invalid sessions: {dropped}. Rejected tasks: {dropped_tasks}.\n'
     text += 'Private per-device sampling rate, duration, points: quality_by_device.json beside manifest.\n'
     text += 'Device UUID is a grouping fallback, not proof of unique cross-device human identity.\n'
     Path(report).parent.mkdir(parents=True, exist_ok=True); Path(report).write_text(text)
