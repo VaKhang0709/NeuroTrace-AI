@@ -2,7 +2,7 @@
 
 **No new real dataset downloaded or integrated in this environment.** Direct HTTPS
 attempts to the requested sources failed at the sandbox network boundary (curl
-SSL_ERROR_SYSCALL). Outbound access is restricted to GitHub and package registries.
+SSL_ERROR_SYSCALL for UCI/UNESP/PhysioNet/Synapse, DNS resolution failure for BDALab). Outbound access is restricted to GitHub and package registries.
 A failed network request is NOT proof a dataset is unavailable at its institution.
 No raw UCI source directory is mounted locally, despite previous-session availability.
 V5 weights are not a substitute for UCI trajectories. Existing reported counts are

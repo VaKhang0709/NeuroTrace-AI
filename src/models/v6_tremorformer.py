@@ -1,6 +1,6 @@
 """TremorFormer V6 research architecture. No pretrained/performance claims.
 
-6 Conformer blocks, d_model=256, FF expansion=8 (~17M parameters, tested below).
+6 Conformer blocks, d_model=256, FF expansion=8 (15.78M parameters, verified in tests).
 Clinical head returns RAW logits for BCEWithLogitsLoss; sigmoid at inference only.
 Device-conditioned FiLM is an ablatable hypothesis, not proof of invariance.
 """

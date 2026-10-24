@@ -426,3 +426,34 @@ Production weights and participant data remain external; this source sync does
 not fabricate or bundle missing model artifacts. The original Colab scripts in
 `src/ai_model/scripts/` retain their notebook `%%writefile` headers; the modular
 files above are directly importable Python.
+
+## V6 TremorFormer — experimental research scaffold
+
+V6 adds a **15.78M-parameter** multi-scale CNN + six-block Conformer with
+FiLM device adaptation, GRL, masked auxiliary heads and fold-scoped MAE pretraining.
+The source includes authorized Firebase ingestion, access-gated dataset adapters,
+a NEW 19-channel/100Hz/512-step preprocessing contract, fold-local augmentation,
+five-fold training,10×5 TTA ensemble,subject-level evaluation and ONNX/calibration tools.
+
+**NOT clinically trained or validated.** No >0.97 AUC, mobile-PD robustness,
+SOTA superiority or deployable V6 weights are claimed. CPU correctness tests and
+random-weight full-model ONNX parity are not disease-performance evidence.
+V5 production weights/scaler remain unchanged. PR #4 stays open for manual review.
+
+- [Architecture](docs/v6_architecture.md)
+- [Training and reproduction](docs/v6_training_protocol.md)
+- [External access status](docs/v6_external_datasets.md)
+- [Results register](docs/v6_results.md)
+- [Limitations](docs/v6_limitations.md)
+- [Blockers](BLOCKERS.md)
+
+```bash
+pip install -r requirements-v6.txt
+python -m pytest tests/test_v6.py
+python -m scripts.v6_smoke_test --output /tmp/v6_smoke --full-export
+```
+
+Keep credentials,subject manifests and trajectories private/ignored. Synthetic
+cross-domain tremor injection defaults OFF and is an explicitly flagged ablation,
+not a substitute for real mobile PD observations. No V5 threshold change or retrain
+is part of V6 development.
