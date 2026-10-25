@@ -167,6 +167,7 @@ def train_fold(model,train_loader,val_loader,output,epochs=200,patience=20,
             row=dict(epoch=epoch,loss=float(np.mean(losses)),val_subject_auc=val,val_pr_auc=vm['pr_auc'],val_sensitivity=vm['sensitivity'],
                      val_specificity=vm['specificity'],val_ece=vm['ece'],lr=opt.param_groups[0]['lr'],synthetic_windows=synthetic_windows)
             log.writerow(row); f.flush()
+            print('Training epoch:',json.dumps(dict(fold=output.name,**row)),flush=True)
             for key in ('loss','val_subject_auc','val_pr_auc','val_sensitivity','val_specificity','val_ece','lr'): writer.add_scalar(key,row[key],epoch)
             if val>best+1e-5: best=val; stale=0
             else: stale+=1
@@ -217,6 +218,7 @@ def run(records,partition,output,epochs=200,ssl_epochs=100,batch_size=4,seed=42,
                 weights=np.r_[np.full(nreal,(1-synthetic_fraction)/nreal),np.full(nsynth,synthetic_fraction/nsynth)]
                 train_ds=CombinedTrainingDataset(train_ds,synthetic_ds)
                 sampler=WeightedRandomSampler(torch.as_tensor(weights),num_samples=int(np.ceil(nreal/(1-synthetic_fraction))),replacement=True)
+        print(f'Starting fold {fold}: {len(train)} train parents, {len(valid)} validation parents, {len(train_ds)} train windows',flush=True)
         best=train_fold(model,DataLoader(train_ds,batch_size=batch_size,shuffle=sampler is None,sampler=sampler,num_workers=0),
               DataLoader(val_ds,batch_size=batch_size,num_workers=0),folder,epochs=epochs,
               device=device,seed=seed+fold,probabilities=probabilities)

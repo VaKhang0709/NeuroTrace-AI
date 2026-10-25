@@ -207,6 +207,12 @@ def build(root,records_path='data/processed/v6_unified_records.json',partition_p
             except ValueError as exc: audit['feature_qc_skipped_'+str(exc)]+=1
         records=eligible
     partition=partition_subjects(records,seed)
+    if Path(partition_path).exists():
+        existing=json.loads(Path(partition_path).read_text())
+        sets=[set(existing[k]) for k in ('development_subjects','holdout_subjects','unlabeled_subjects')]
+        if any(sets[i]&sets[j] for i in range(3) for j in range(i)) or set.union(*sets)!={tr.subject_id for tr in records}:
+            raise ValueError('Existing locked partition conflicts with prepared cohort; choose a reviewed new run, never silently overwrite it')
+        partition=existing
     counts=Counter(tr.label for tr in {t.subject_id:t for t in records}.values())
     output=[to_record(tr) for tr in records]
     for path,value in [(Path(records_path),output),(Path(partition_path),partition)]:
@@ -218,6 +224,7 @@ def build(root,records_path='data/processed/v6_unified_records.json',partition_p
         azimuth_unit=azimuth_unit,coordinate_units='unknown (source README does not calibrate native coordinates)',
         counters=dict(audit),records_written=len(output),subjects_per_label=dict(counts),
         partitions={k:len(v) for k,v in partition.items()},seed=seed)
+    Path(records_path).with_suffix('.ingestion.json').write_text(json.dumps(summary,indent=2))
     print(json.dumps(summary,indent=2)); return records,partition,summary
 
 

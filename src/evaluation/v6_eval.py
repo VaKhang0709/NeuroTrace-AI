@@ -146,6 +146,15 @@ def report(prediction,holdout_subjects,output='reports/v6_final_evaluation.md',
             '',f'Aggregate plots saved locally to `{plot_dir}/roc_calibration.png`.',
             'No raw trajectories or subject IDs are included. Not clinical validation.']
     output=Path(output); output.parent.mkdir(parents=True,exist_ok=True); output.write_text('\n'.join(lines)+'\n')
+    import csv
+    with output.with_suffix('.csv').open('w',newline='') as f:
+        fields=['domain','subjects','metric','value','ci95_low','ci95_high','valid_replicates']
+        writer=csv.DictWriter(f,fieldnames=fields); writer.writeheader()
+        for domain,group in result.items():
+            for name,stat in group['metrics'].items():
+                ci=stat['ci95'] or [None,None]
+                writer.writerow(dict(domain=domain,subjects=group['subjects'],metric=name,value=stat['value'],
+                    ci95_low=ci[0],ci95_high=ci[1],valid_replicates=stat['valid_replicates']))
     return result
 
 
