@@ -14,7 +14,7 @@ from torch import nn
 from scipy.special import expit
 from sklearn.isotonic import IsotonicRegression
 from src.inference.v6_ensemble_inference import load_model
-from src.preprocessing.v6_pipeline import FEATURES,CUTOFF,BINARY_CHANNELS
+from src.preprocessing.v6_pipeline import FEATURES,CUTOFF,BINARY_CHANNELS,feature_names,BASE_CONTRACT
 from src.data_loaders.schema import DOMAINS
 from src.evaluation.v6_eval import aggregate
 
@@ -24,7 +24,7 @@ class ClinicalONNX(nn.Module):
         return self.model(x,domain)['pd_logits']
 
 
-def export_member(checkpoint,output,real_windows=None,seed=42):
+def export_member(checkpoint,output,real_windows=None,seed=42,dynamic_sequence=False):
     import onnx
     import onnxruntime as ort
     model,metadata=load_model(checkpoint); model.eval(); wrapper=ClinicalONNX(model).eval()
@@ -37,7 +37,7 @@ def export_member(checkpoint,output,real_windows=None,seed=42):
             torch.onnx.export(wrapper,(torch.zeros(1,c,512),torch.tensor([4])),str(output),
                   opset_version=17,dynamo=False,do_constant_folding=True,
                   input_names=['trajectory','device_id'],output_names=['logits'],
-                  dynamic_axes={'trajectory':{0:'batch'},'device_id':{0:'batch'},'logits':{0:'batch'}})
+                  dynamic_axes={'trajectory':({0:'batch',2:'sequence_length'} if dynamic_sequence else {0:'batch'}),'device_id':{0:'batch'},'logits':{0:'batch'}})
     finally:
         torch.backends.mha.set_fastpath_enabled(fastpath)
         wrapper.eval(); model.eval()
@@ -50,13 +50,13 @@ def export_member(checkpoint,output,real_windows=None,seed=42):
                 x=real_windows[0][i-50:i-49].astype(np.float32)
                 domain=real_windows[1][i-50:i-49].astype(np.int64); real_count+=1
             else:
-                bs=[1,2,4][i%3]; x=rng.normal(size=(bs,c,512)).astype(np.float32)
+                bs=[1,2,4][i%3]; length=([256,384,512,768][i%4] if dynamic_sequence else 512); x=rng.normal(size=(bs,c,length)).astype(np.float32)
                 domain=rng.integers(0,5,bs,dtype=np.int64)
             pt=wrapper(torch.from_numpy(x),torch.from_numpy(domain)).numpy()
             runtime=session.run(['logits'],{'trajectory':x,'device_id':domain})[0]
             if pt.shape!=runtime.shape or not np.isfinite(runtime).all(): raise ValueError('Invalid ONNX output')
             maximum=max(maximum,float(np.abs(pt.astype(float)-runtime.astype(float)).max()))
-    parity=dict(tensors=100,supplied_validation_tensors=real_count,max_logit_error=maximum,
+    parity=dict(dynamic_sequence=dynamic_sequence,tensors=100,supplied_validation_tensors=real_count,max_logit_error=maximum,
                 tolerance=1e-5,passed=maximum<1e-5,
                 onnx_sha256=hashlib.sha256(output.read_bytes()).hexdigest())
     output.with_suffix('.parity.json').write_text(json.dumps(parity,indent=2))
@@ -99,9 +99,10 @@ def main():
         real=(calibration['X'],calibration['domain']) if i==best else None
         filename=output/f'tremorformer_fold_{i}.onnx'; parity=export_member(path,filename,real)
         files.append(dict(file=filename.name,size_bytes=filename.stat().st_size,parity=parity))
-    config=dict(version='v6-research-1',feature_names=FEATURES,shape=['batch',len(FEATURES),512],
+    contract=metadata.get('feature_contract',BASE_CONTRACT)
+    config=dict(version='v6-research-1',feature_contract=contract,feature_names=feature_names(contract),shape=['batch',len(FEATURES),512],
        canonical_rate_hz=100,normalization='per_window_population_zscore_epsilon_1e-6',
-       binary_channels_unstandardized=BINARY_CHANNELS,mean=[0.]*len(FEATURES),scale=[1.]*len(FEATURES),
+       binary_channels_unstandardized=BINARY_CHANNELS if contract==BASE_CONTRACT else [],mean=[0.]*len(FEATURES),scale=[1.]*len(FEATURES),
        statistics_semantics='identity AFTER per-window normalization; not fitted global raw statistics',
        device_lookup={name:i for i,name in enumerate(DOMAINS)},device_filter_cutoff_hz=CUTOFF,
        classification_threshold=.5,output_semantics='raw_logits_apply_sigmoid_then_subject_mean',

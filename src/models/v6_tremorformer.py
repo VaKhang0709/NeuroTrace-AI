@@ -30,12 +30,26 @@ class ConformerBlock(nn.Module):
         self.norm=nn.LayerNorm(d); self.drop=nn.Dropout(dropout)
         self.film=nn.Linear(32,2*d)
         nn.init.zeros_(self.film.weight); nn.init.zeros_(self.film.bias)
+    def self_attention(self,x):
+        # Explicit self-attention avoids legacy MHA's traced constant-length
+        # reshapes; preserve identical nn.MultiheadAttention parameter names.
+        b,n,d=x.shape; heads=self.attn.num_heads; width=self.attn.head_dim
+        q,k,v=F.linear(x,self.attn.in_proj_weight,self.attn.in_proj_bias).chunk(3,-1)
+        q=q.reshape(b,n,heads,width).transpose(1,2)
+        k=k.reshape(b,n,heads,width).transpose(1,2)
+        v=v.reshape(b,n,heads,width).transpose(1,2)
+        scores=torch.matmul(q,k.transpose(-1,-2))/math.sqrt(width)
+        weights=torch.softmax(scores,dim=-1,dtype=torch.float32).to(v.dtype)
+        weights=F.dropout(weights,p=self.attn.dropout,training=self.training)
+        out=torch.matmul(weights,v).transpose(1,2).reshape(b,n,d)
+        return F.linear(out,self.attn.out_proj.weight,self.attn.out_proj.bias)
+
     def forward(self,x,device):
         gamma,beta=self.film(device).chunk(2,-1)
         x=x*(1+gamma[:,None,:])+beta[:,None,:]
         x=x+.5*self.ff1(x)
         q=self.attn_norm(x)
-        x=x+self.drop(self.attn(q,q,q,need_weights=False)[0])
+        x=x+self.drop(self.self_attention(q))
         x=x+self.conv(self.conv_norm(x).transpose(1,2)).transpose(1,2)
         return self.norm(x+.5*self.ff2(x))
 
@@ -55,6 +69,7 @@ class TremorFormer(nn.Module):
         sinusoid=torch.zeros(128,d_model)
         sinusoid[:,0::2]=torch.sin(position*divisor); sinusoid[:,1::2]=torch.cos(position*divisor)
         self.register_buffer('sinusoid',sinusoid[None],persistent=False)
+        self.register_buffer('position_frequency',divisor,persistent=False)
         self.device_embedding=nn.Linear(5,32)
         self.blocks=nn.ModuleList([ConformerBlock(d_model,heads,expansion,dropout) for _ in range(blocks)])
         self.pool=nn.Sequential(nn.Linear(d_model,d_model//2),nn.Tanh(),nn.Linear(d_model//2,1))
@@ -65,7 +80,11 @@ class TremorFormer(nn.Module):
 
     def encode(self,x,domain):
         h=self.projection(torch.cat([stem(x) for stem in self.stems],dim=1).transpose(1,2))
-        h=h+self.position+self.sinusoid
+        length=h.shape[1]
+        learned=F.interpolate(self.position.transpose(1,2),size=length,mode='linear',align_corners=False).transpose(1,2)
+        angles=torch.arange(length,device=x.device,dtype=torch.float32)[:,None]*self.position_frequency[None,:]
+        sinusoid=torch.stack([torch.sin(angles),torch.cos(angles)],dim=-1).flatten(1)[None]
+        h=h+learned+sinusoid
         onehot=F.one_hot(domain.to(torch.int64),num_classes=5).to(x.dtype)
         device=self.device_embedding(onehot)
         if not self.config['device_film']: device=torch.zeros_like(device)
