@@ -1,0 +1,23 @@
+{
+  "scope": "CPU ONE-MEMBER EXECUTION CHECK ONLY, NOT GPU/FIVEFOLD/CLINICAL ACCEPTANCE",
+  "parameters": 15779536,
+  "epochs": 2,
+  "train_subjects": 8,
+  "validation_subjects": 4,
+  "locked_holdout_subjects": 15,
+  "actual_train_windows": 32,
+  "validation_windows": 35,
+  "losses_finite": true,
+  "cpu_seconds": 296.9917747974396,
+  "parity": {
+    "dynamic_sequence": true,
+    "tensors": 100,
+    "supplied_validation_tensors": 50,
+    "max_logit_error": 7.748603820800781e-07,
+    "tolerance": 1e-05,
+    "passed": true,
+    "onnx_sha256": "5426569a69b8ebdb03a5d9cf0d1142c291169653d5ecaa533cc39e43d834e781"
+  },
+  "metrics_csv_exists": true,
+  "training_limitations": "4 actual windows/parent; first eligible trial for train/selection; single full architecture member; no SSL; CPU only"
+}

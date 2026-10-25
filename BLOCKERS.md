@@ -1,3 +1,29 @@
+# Current V6 blockers — real loader correction, 2026-10-25
+
+Only `arena/4edc99ce-neurotrace-ai`; keep PR #4 OPEN. V5 unchanged.
+
+| Requirement | Current measured status | Remaining blocker / action |
+|---|---|---|
+| Real UCI parsing / schema / preparation | PASS on pinned public mirror:77subjects,15HC/62PD;188schema-valid,182feature-ready trajectories;2588real windows;62/15subject split | Mirror hashes verified,not independently official-release checksums; other Kaggle packaging still requires its own QC |
+| Native clock and coordinate evidence | Explicit configured milliseconds→seconds conversion logged;original column mapping verified | Original mirrored README does NOT declare time unit or physical coordinate calibration. Milliseconds remains an assumption; obtain primary acquisition dictionary before treating physical units as independently verified |
+| Full regression / recorded fixture coverage |41tests PASS,11new recorded-fixture tests;notebook valid and outputs cleared | One legacy ONNX tracer warning;CUDA execution not established by CPU tests |
+| Fresh required GPU end-to-end acceptance | **BLOCKED**:Torch2.5.1+cu124,CUDA=False,0devices,no nvidia-smi | Run fresh Colab/Kaggle install→real prepare→2–3CUDA epochs→trained member ONNX/parity→locked subject CSV;do not call CPU evidence GPU acceptance |
+| Limited real CPU execution diagnostic | Full15.78M member,2epochs,8train/4validation parents (32train windows),trained ONNX100tensor parity7.749e-7;guarded15subject holdout CSV written | Capped one-member CPU diagnostic,NOT fivefold/full-data/GPU or clinical acceptance;artifacts private |
+| Full V6 clinical research training | Not executed on target GPU;smoke is not convergence/performance evidence | Authorized reviewed cohort,adequate GPU,dataset/unit review and prespecified protocol |
+| Real recorded-source synthetic ablation | UCI-PD donors now available locally;baseline correctly skips generation | No authorized real touch/mouse HC baselines;synthetic pseudo-PD cannot validate mobile disease sensitivity |
+| Mobile/touch PD sensitivity | **UNMEASURABLE** | No real independent mobile PD cohort;Wacom UCI is not mobile validation |
+| Healthy-phone high-PD web behavior | **UNRESOLVED domain gap** | Notebook/loader fix does not resolve production mobile behavior;requires real device-balanced study,not test-threshold hacking |
+| Other native/Firebase sources | No new access claimed | Credentials/consent/dictionaries/licenses remain operator-reviewed;no mock or alternate weights substitute |
+
+Current evidence: `reports/v6_uci395_loader_verification.md`;exact commands:
+`docs/v6_gpu_execution_guide.md`. Full private raw/caches/weights stay outside Git;
+only bounded attributed public recorded test excerpts are committed. No clinical
+model promotion,release,merge or V5 threshold change is authorized by these checks.
+
+---
+
+## Historical blockers (superseded where the current table above says PASS)
+
 # V6 blockers — 2026-10-24
 
 Branch: `arena/4edc99ce-neurotrace-ai`; PR #4 must remain open for Tech Lead.

@@ -1,3 +1,18 @@
+# Current correction — real UCI395 loader, 2026-10-25
+
+**Supersedes the historical source-availability/test-count statements below.**
+Real pinned-mirror UCI preparation now passes:77subjects (15HC/62PD),182eligible
+trajectories,2588DWT19 windows; fresh full suite **41passed**,11new recorded-fixture
+tests. Raw clock milliseconds remains an explicitly disclosed assumption because
+the mirrored original README does not declare units. No GPU device is available;
+the required fresh GPU sequence is NOT verified. No mobile-PD validation or web
+domain-gap fix is claimed. Details and exact reproduction:
+`reports/v6_uci395_loader_verification.md`, `docs/v6_gpu_execution_guide.md`.
+
+---
+
+## Historical engineering checks (before real-source loader correction)
+
 # V6 engineering correctness — 2026-10-24
 
 **Synthetic tests only. No clinical training or held-out patient results.**

@@ -18,7 +18,7 @@ PROVENANCE.json. Each original blob was retrieved through GitHub's API and its G
 blob SHA-1 checked before taking an excerpt. Numeric rows are UNCHANGED. Four
 DIFFERENT recorded source files are used; no path was cloned to invent participants.
 LF normalization and truncation are documented. C_0002 adds the literal column
-header from source_readme.txt to exercise named-header parsing; the original
+header from readme.txt to exercise named-header parsing; the original
 trajectory is HEADERLESS. It does NOT pretend that the original had that header.
 
 Verified columns: **X;Y;Z;Pressure;GripAngle;Timestamp;Test ID**. The README does

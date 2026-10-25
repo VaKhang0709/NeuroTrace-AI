@@ -35,7 +35,9 @@ def read_records(path):
     if not isinstance(raw,list) or not raw: raise ValueError('Expected nonempty unified record LIST, not a raw table/wrapper')
     records=[]; failures=[]
     for i,value in enumerate(raw):
-        try: records.append(Trajectory.from_dict(value))
+        try:
+            if not isinstance(value,dict): raise ValueError('Expected a versioned record dictionary')
+            records.append(Trajectory.from_dict(value))
         except (ValueError,TypeError,KeyError) as exc: failures.append(dict(record_index=i,error=str(exc)))
     if failures:
         print('CANONICAL RECORD FAILURES (no replacement/repair):',json.dumps(failures,indent=2),flush=True)
