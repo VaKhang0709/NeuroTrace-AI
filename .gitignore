@@ -267,3 +267,11 @@ GoogleService-Info.plist
 .DS_Store
 Thumbs.db
 
+
+# V6 private datasets, cloud credentials, local runs and unvalidated weights
+/models/v6*/
+/runs/
+/reports/private/
+/secrets/
+*.npz
+*.npy

@@ -1,0 +1,3 @@
+# Explicit GPU workflow version (Colab/Kaggle driver compatibility still required).
+torch==2.5.1
+-r requirements-v6.txt

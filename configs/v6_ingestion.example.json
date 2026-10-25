@@ -1,0 +1,7 @@
+{
+  "service_account": "secrets/firebase-service-account.json",
+  "storage_bucket": "REPLACE_WITH_AUTHORIZED_BUCKET",
+  "collection": "v6_sessions",
+  "output": "data/raw/v6_web_collection",
+  "max_blob_bytes": 52428800
+}

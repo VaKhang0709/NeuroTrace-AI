@@ -1,0 +1,40 @@
+{
+  "model_version": "neurotrace_v5_production",
+  "promoted_from_tag": "expD_v5_production",
+  "promoted_at": "2026-10-23T17:57:29.293017+00:00",
+  "in_channels": 5,
+  "seq_len": 256,
+  "feature_names": [
+    "x",
+    "y",
+    "pressure",
+    "velocity",
+    "dt"
+  ],
+  "mean": [
+    -7.64641954140427e-11,
+    2.766540157772983e-11,
+    -3.906035821776082e-12,
+    1.1061299610624562,
+    0.009553401427134666
+  ],
+  "scale": [
+    0.7218062399419907,
+    0.6920951899605052,
+    0.9980028036499135,
+    1.6854436521895446,
+    0.24163805754977769
+  ],
+  "classification_threshold": 0.5,
+  "output_activation_in_onnx": "raw_logits_apply_sigmoid_at_inference",
+  "decision_gate": {
+    "device_leakage_probe_auc": 0.67904,
+    "threshold_max_leakage_auc": 0.75,
+    "holdout_sensitivity": 1.0,
+    "threshold_min_sensitivity": 0.85,
+    "holdout_specificity": 0.85714,
+    "threshold_min_specificity": 0.75,
+    "status": "PASS"
+  },
+  "disclaimer": "RESEARCH PROTOTYPE \u2014 Not an approved medical device. Statistical risk score only."
+}

@@ -372,3 +372,117 @@ A high-school science research project exploring whether digital handwriting dyn
 Made with care by The Undercats
 
 </div>
+
+## V5 production pipeline
+
+Reported V5 production experiment (subject-grouped evaluation, not independently
+revalidated in this module-refactoring change):
+
+| Metric | Value |
+|---|---:|
+| Holdout accuracy | **0.923** |
+| Holdout ROC-AUC | **0.976** |
+| Device leakage probe AUC | **0.679** |
+
+896 effective profiles represent 128 human participants plus 768 anchored virtual
+sessions, **not 896 independent people**. Keep every session grouped by its parent
+subject for all splits. These research results are not clinical validation or a diagnosis.
+
+### Modular implementation
+
+- `src/models/network_v5.py`: checkpoint-compatible `NeuroTraceDualHeadV5`,
+  CNN + BiLSTM embedding, GRL and device head. `forward()` emits clinical raw
+  logits for BCEWithLogitsLoss; `forward_dual()` enables adversarial training.
+- `src/data/preprocessor.py`: legacy approximately 100 Hz uniform interpolation,
+  fourth-order 12 Hz zero-phase Butterworth filtering, geometric window
+  normalization, pressure proxy, 256-step interpolation, and training-set Z-scores.
+  Channel order is `[x, y, pressure, velocity, dt]`; timestamps are seconds.
+  The legacy endpoint-inclusive time grid and dt normalization are deliberately
+  preserved for checkpoint compatibility. Do not substitute a new preprocessing
+  algorithm without retraining and validation.
+- `src/export/export_onnx.py`: strict checkpoint loading, opset 17 legacy export
+  (`dynamo=False`), dynamic batch, raw logits, companion scaler JSON.
+- `src/eval/verify_parity.py`: 100 tensor comparisons with strict max logit
+  error `< 1e-5`. Defaults to explicitly labelled synthetic-only tests; pass
+  pre-standardized real windows for a 50 synthetic / 50 real-window audit.
+
+Run from the repository root in Python 3.10+:
+
+```bash
+python -m pip install -r src/requirements-v5.txt
+python -m pytest tests/test_v5_modules.py
+python -m src.export.export_onnx \
+  --checkpoint /path/to/neurotrace_v5_production.pth --output-dir artifacts/v5
+python -m src.eval.verify_parity \
+  --checkpoint /path/to/neurotrace_v5_production.pth \
+  --onnx artifacts/v5/neurotrace_v5.onnx \
+  --real-windows /path/to/standardized_real_windows.npy
+```
+
+`--real-windows` is optional and requires a finite NumPy array `(N, 5, 256)`,
+`N >= 50`, already standardized with the production scaler. A window is not
+necessarily a unique participant. Never fit normalization on holdout subjects.
+Production weights and participant data remain external; this source sync does
+not fabricate or bundle missing model artifacts. The original Colab scripts in
+`src/ai_model/scripts/` retain their notebook `%%writefile` headers; the modular
+files above are directly importable Python.
+
+## V6 TremorFormer — experimental research scaffold
+
+V6 adds a **15.78M-parameter** multi-scale CNN + six-block Conformer with
+FiLM device adaptation, GRL, masked auxiliary heads and fold-scoped MAE pretraining.
+The source includes authorized Firebase ingestion, access-gated dataset adapters,
+a NEW 19-channel/100Hz/512-step preprocessing contract, fold-local augmentation,
+five-fold training,10×5 TTA ensemble,subject-level evaluation and ONNX/calibration tools.
+
+**NOT clinically trained or validated.** No >0.97 AUC, mobile-PD robustness,
+SOTA superiority or deployable V6 weights are claimed. CPU correctness tests and
+random-weight full-model ONNX parity are not disease-performance evidence.
+V5 production weights/scaler remain unchanged. PR #4 stays open for manual review.
+
+- [Architecture](docs/v6_architecture.md)
+- [Training and reproduction](docs/v6_training_protocol.md)
+- [External access status](docs/v6_external_datasets.md)
+- [Results register](docs/v6_results.md)
+- [Limitations](docs/v6_limitations.md)
+- [Blockers](BLOCKERS.md)
+
+```bash
+pip install -r requirements-v6.txt
+python -m pytest tests/test_v6.py
+python -m scripts.v6_smoke_test --output /tmp/v6_smoke --full-export
+```
+
+Keep credentials,subject manifests and trajectories private/ignored. Synthetic
+cross-domain tremor injection defaults OFF and is an explicitly flagged ablation,
+not a substitute for real mobile PD observations. No V5 threshold change or retrain
+is part of V6 development.
+
+### V6 automated acquisition → anchored synthesis → GPU workflow
+
+```text
+Official UCI ZIP / authorized local fallback / reviewed open DOI mirrors
+                         + private real HC touch/mouse streams
+                                      │
+             explicit units + locked HUMAN parent partition
+                                      │
+          4–8Hz donor overlay →10002variants (5001/domain)
+           donor AND recipient lineage retained;not new people
+                                      │
+           per-fold BOTH-parent filtering + real-only validation
+                                      │
+            versioned19channels →15.78M TremorFormer (5folds)
+                                      │
+       dynamic ONNX + member-validation calibration →locked REAL holdout
+```
+
+- [Colab/Kaggle GPU notebook](notebooks/v6_gpu_beast_training.ipynb)
+- [Tech Lead execution guide](docs/v6_gpu_execution_guide.md)
+- [Acquisition and scale-test evidence](reports/v6_gpu_workflow_verification.md)
+
+**Current boundary:** UCI download was TLS-blocked here;recorded-source synthesis
+and GPU clinical training remain blocked.10002materialized variants were verified
+using **mock sources only**,kept outside Git and rejected by the production runner.
+The full random-weight model passed dynamic-time100tensor ONNX parity(max1.073e-6),
+which is NOT disease-detection performance. No pretrained V6 release or >0.97AUC
+claim is made. Preserve V5 and keep PR#4 open for manual Tech Lead review.
