@@ -1,0 +1,54 @@
+{
+  "dataset_doi": "10.24432/C5Q01S",
+  "mirror_commit": "25ca56231bc161b39b4e896f126de89284041b95",
+  "fixtures": [
+    {
+      "fixture": "control/C_0001.txt",
+      "source_url": "https://github.com/irenemao/Handwriting-Analysis/blob/25ca56231bc161b39b4e896f126de89284041b95/hw_dataset/control/C_0001.txt",
+      "source_git_blob_sha": "2d399b97a92dbba798ca01dfff25f12b85746375",
+      "source_sha256": "799666f0b939d203bad3f86bcac68e50add8add840e7dc545ce598702083649e",
+      "source_line_range": [
+        1,
+        750
+      ],
+      "fixture_sha256": "2932976b89a101b7199cd73f92c2126919c9726bf0f6ef804a785c0fc4c11ac2",
+      "modifications": "LF line endings; leading numeric rows only"
+    },
+    {
+      "fixture": "control/C_0002.txt",
+      "source_url": "https://github.com/irenemao/Handwriting-Analysis/blob/25ca56231bc161b39b4e896f126de89284041b95/hw_dataset/control/C_0002.txt",
+      "source_git_blob_sha": "907d925ed032684119635af94356dc06df548c90",
+      "source_sha256": "a7df3a00789fbaf00b9db02c1e391e8220b3697a90d2a4f136b25ca14acfaf5b",
+      "source_line_range": [
+        1,
+        750
+      ],
+      "fixture_sha256": "55bd24384e588398f01708ce343e44caf4b6f4dde50d9c0fb192b1a5aff72830",
+      "modifications": "LF line endings; leading numeric rows only; prepended column header verbatim from dataset readme (original trajectory is headerless)"
+    },
+    {
+      "fixture": "parkinson/P_26060001.txt",
+      "source_url": "https://github.com/irenemao/Handwriting-Analysis/blob/25ca56231bc161b39b4e896f126de89284041b95/hw_dataset/parkinson/P_26060001.txt",
+      "source_git_blob_sha": "6fb2622984278d7122e6a58f58d44568bd761fdb",
+      "source_sha256": "cb976d0fdd34432a847f623fa31d369dd7b5d0a61586d53f5923694a1b9ee108",
+      "source_line_range": [
+        1,
+        700
+      ],
+      "fixture_sha256": "baf91418ff78340632013be5f2ce6ac3803be7d90e6b126ffd2b414dacb7f6f8",
+      "modifications": "LF line endings; leading numeric rows only"
+    },
+    {
+      "fixture": "parkinson/P_26060002.txt",
+      "source_url": "https://github.com/irenemao/Handwriting-Analysis/blob/25ca56231bc161b39b4e896f126de89284041b95/hw_dataset/parkinson/P_26060002.txt",
+      "source_git_blob_sha": "daeaf9c5d1d7bf13851760d688f00f42e9cc5f7b",
+      "source_sha256": "e82967fe243ac6673f81ef29c63dd8d6a3309fb74ec992788992eb1a5be3d319",
+      "source_line_range": [
+        1,
+        750
+      ],
+      "fixture_sha256": "5ea4c1a8549d10bfadd70ac25d0c52c8e7c05fe141acb33e4b7e60106ce7a04c",
+      "modifications": "LF line endings; leading numeric rows only"
+    }
+  ]
+}
