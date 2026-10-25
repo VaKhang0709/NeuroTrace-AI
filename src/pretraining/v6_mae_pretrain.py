@@ -51,7 +51,7 @@ def pretrain(backbone,loader,allowed_subjects,output,epochs=100,patience=10,devi
         score=float(np.mean(losses)) if losses else float('inf')
         if score<best-1e-6:
             best=score; stale=0
-            torch.save(dict(model_state_dict=backbone.state_dict(),model_config=backbone.config,
+            torch.save(dict(model_state_dict=backbone.state_dict(),model_config=backbone.config,feature_contract=getattr(backbone,'feature_contract','v6-bands19-v1'),
                             training_subjects=sorted(allowed),epoch=epoch,ssl_loss=score,seed=seed),path)
         else: stale+=1
         if stale>=patience: break

@@ -10,6 +10,7 @@ def load_model(path,device='cpu'):
     checkpoint=torch.load(path,map_location='cpu',weights_only=True)
     model=TremorFormer(**checkpoint['model_config'])
     model.load_state_dict(checkpoint['model_state_dict'],strict=True)
+    model.feature_contract=checkpoint.get('feature_contract','v6-bands19-v1')
     return model.to(device).eval(),checkpoint
 
 
@@ -33,6 +34,8 @@ class Ensemble:
     def __init__(self,paths,device='cpu',require_five=True):
         if require_five and len(paths)!=5: raise ValueError('Need exactly five fold models')
         loaded=[load_model(p,device) for p in paths]
+        if len({getattr(m,'feature_contract','v6-bands19-v1') for m,_ in loaded})!=1:
+            raise ValueError('Mixed feature contracts in ensemble')
         self.models=[m for m,_ in loaded]; self.checkpoints=[c for _,c in loaded]; self.device=device
 
     @torch.no_grad()
@@ -46,7 +49,7 @@ class Ensemble:
         all_prob=[]; identity_features=[]
         from src.data_loaders.schema import DOMAINS
         for variant_index,augmented in enumerate(variants(trial)):
-            x,_=transform(augmented); x=torch.from_numpy(x).to(self.device)
+            x,_=transform(augmented,contract=self.models[0].feature_contract); x=torch.from_numpy(x).to(self.device)
             domain=torch.full((len(x),),DOMAINS.index(trial.domain),device=self.device,dtype=torch.long)
             for model in self.models:
                 # Bound inference memory, even for long private drawings.

@@ -17,7 +17,7 @@ from torch.utils.data import DataLoader,Dataset
 from sklearn.model_selection import GroupKFold
 from sklearn.metrics import roc_auc_score
 from src.data_loaders.schema import Trajectory,DOMAINS,TASKS
-from src.preprocessing.v6_pipeline import transform
+from src.preprocessing.v6_pipeline import transform,BASE_CONTRACT
 from src.augmentation.v6_augmentations import Augmenter,mix_batch,DEFAULT_PROBABILITIES
 from src.models.v6_tremorformer import TremorFormer
 from src.pretraining.v6_mae_pretrain import pretrain
@@ -47,14 +47,14 @@ def validate_partition(records,partition):
     return dev,test,unlabeled
 
 class TrajectoryDataset(Dataset):
-    def __init__(self,records,allowed_subjects,augmenter=None,seed=42):
+    def __init__(self,records,allowed_subjects,augmenter=None,seed=42,contract=BASE_CONTRACT):
         self.records=list(records); self.subjects=sorted({t.subject_id for t in records})
         if not set(self.subjects)<=set(allowed_subjects): raise ValueError('Dataset has forbidden parent')
-        self.augmenter=augmenter; self.rng=np.random.default_rng(seed)
+        self.contract=contract; self.augmenter=augmenter; self.rng=np.random.default_rng(seed)
         self.cached=[]; self.index=[]
         # Fail loudly on short/bad trials rather than silently changing clinical cohort.
         for i,tr in enumerate(records):
-            windows,_=transform(tr); self.cached.append(windows)
+            windows,_=transform(tr,contract=self.contract); self.cached.append(windows)
             self.index.extend((i,j) for j in range(len(windows)))
         if not self.index: raise ValueError('Empty dataset')
     def __len__(self): return len(self.index)
@@ -62,10 +62,10 @@ class TrajectoryDataset(Dataset):
         i,j=self.index[index]; tr=self.records[i]; x=self.cached[i][j].copy()
         if self.augmenter:
             tr,_=self.augmenter(tr)
-            windows,_=transform(tr); x=windows[min(j,len(windows)-1)].copy()
+            windows,_=transform(tr,contract=self.contract); x=windows[min(j,len(windows)-1)].copy()
             # Explicit feature dropout, not merely native-pressure -> proxy fallback.
             if self.rng.random()<self.augmenter.p['pressure_dropout']:
-                x[[2,11,17]]=0
+                x[[2,11,17] if self.contract==BASE_CONTRACT else [2,11,18]]=0
         task=TASKS.index(tr.task_id) if tr.task_id in TASKS else -1
         return dict(x=torch.from_numpy(x),label=torch.tensor(tr.label,dtype=torch.float32),
                     domain=torch.tensor(DOMAINS.index(tr.domain)),task=torch.tensor(task),
@@ -127,7 +127,7 @@ def train_fold(model,train_loader,val_loader,output,epochs=200,patience=20,
     rng=np.random.default_rng(seed); accumulation=max(1,int(np.ceil(effective_batch/train_loader.batch_size)))
     best=-float('inf'); stale=0; top=[]; writer=SummaryWriter(str(output/'tensorboard'))
     with (output/'epochs.csv').open('w',newline='') as f:
-        log=csv.DictWriter(f,fieldnames=['epoch','loss','val_subject_auc','lr','synthetic_windows']); log.writeheader()
+        log=csv.DictWriter(f,fieldnames=['epoch','loss','val_subject_auc','val_pr_auc','val_sensitivity','val_specificity','val_ece','lr','synthetic_windows']); log.writeheader()
         for epoch in range(epochs):
             if epoch<5:
                 for group in opt.param_groups: group['lr']=3e-4*(epoch+1)/5
@@ -146,12 +146,16 @@ def train_fold(model,train_loader,val_loader,output,epochs=200,patience=20,
                 if (step+1)%accumulation==0 or step+1==len(train_loader):
                     scaler.unscale_(opt); nn.utils.clip_grad_norm_(list(model.parameters())+list(criterion.parameters()),1.)
                     scaler.step(opt); scaler.update(); opt.zero_grad(set_to_none=True)
-            val=subject_auc(predict(model,val_loader,device))
-            if not np.isfinite(val): raise ValueError('Validation fold lacks both diagnoses; cannot select on AUC')
-            checkpoint=dict(model_state_dict=model.state_dict(),model_config=model.config,
+            from src.evaluation.v6_eval import aggregate,metrics
+            validation_prediction=predict(model,val_loader,device)
+            _,vy,vp=aggregate(validation_prediction['label'],validation_prediction['probability'],validation_prediction['subject'])
+            vm=metrics(vy,vp); val=vm['roc_auc']
+            if val is None or not np.isfinite(val): raise ValueError('Validation fold lacks both diagnoses; cannot select on AUC')
+            checkpoint=dict(model_state_dict=model.state_dict(),model_config=model.config,feature_contract=getattr(model,'feature_contract',BASE_CONTRACT),
                  loss_state=criterion.state_dict(),optimizer_state=opt.state_dict(),scheduler_state=scheduler.state_dict(),
                  scaler_state=scaler.state_dict(),epoch=epoch,val_auc=val,seed=seed,
-                 training_subjects=train_loader.dataset.subjects,validation_subjects=val_loader.dataset.subjects,
+                 training_subjects=train_loader.dataset.subjects,
+                 synthetic_parent_subjects=getattr(train_loader.dataset,'provenance_subjects',[]),validation_subjects=val_loader.dataset.subjects,
                  ssl_subjects=getattr(model,'ssl_subjects',[]),
                  rng_state=dict(torch=torch.get_rng_state(),python=random.getstate()),
                  augmentation_probabilities=dict(probabilities or DEFAULT_PROBABILITIES))
@@ -160,9 +164,10 @@ def train_fold(model,train_loader,val_loader,output,epochs=200,patience=20,
             top.sort(key=lambda item:item[0],reverse=True)
             for _,removed in top[3:]: removed.unlink(missing_ok=True)
             top=top[:3]
-            row=dict(epoch=epoch,loss=float(np.mean(losses)),val_subject_auc=val,lr=opt.param_groups[0]['lr'],synthetic_windows=synthetic_windows)
+            row=dict(epoch=epoch,loss=float(np.mean(losses)),val_subject_auc=val,val_pr_auc=vm['pr_auc'],val_sensitivity=vm['sensitivity'],
+                     val_specificity=vm['specificity'],val_ece=vm['ece'],lr=opt.param_groups[0]['lr'],synthetic_windows=synthetic_windows)
             log.writerow(row); f.flush()
-            for key in ('loss','val_subject_auc','lr'): writer.add_scalar(key,row[key],epoch)
+            for key in ('loss','val_subject_auc','val_pr_auc','val_sensitivity','val_specificity','val_ece','lr'): writer.add_scalar(key,row[key],epoch)
             if val>best+1e-5: best=val; stale=0
             else: stale+=1
             if stale>=patience: break
@@ -171,7 +176,7 @@ def train_fold(model,train_loader,val_loader,output,epochs=200,patience=20,
 
 
 def run(records,partition,output,epochs=200,ssl_epochs=100,batch_size=4,seed=42,
-        device=None,model_config=None,synthetic_injection=False,augmentation_probabilities=None):
+        device=None,model_config=None,synthetic_injection=False,augmentation_probabilities=None,feature_contract=BASE_CONTRACT,expanded_manifest=None,synthetic_fraction=.25):
     seed_all(seed); dev,holdout,unlabeled=validate_partition(records,partition)
     device=device or ('cuda' if torch.cuda.is_available() else 'cpu')
     clinical=[tr for tr in records if tr.subject_id in dev and tr.label>=0]
@@ -184,10 +189,10 @@ def run(records,partition,output,epochs=200,ssl_epochs=100,batch_size=4,seed=42,
         assert not train&valid and not (train|valid|unlabeled)&holdout
         seed_all(seed+fold)
         folder=output/f'fold_{fold}'; folder.mkdir(parents=True,exist_ok=True)
-        model=TremorFormer(**(model_config or {}))
+        model=TremorFormer(**(model_config or {})); model.feature_contract=feature_contract
         if ssl_epochs:
             ssl_records=[tr for tr in records if tr.subject_id in train|unlabeled]
-            ds=TrajectoryDataset(ssl_records,train|unlabeled)
+            ds=TrajectoryDataset(ssl_records,train|unlabeled,contract=feature_contract)
             pretrain(model,DataLoader(ds,batch_size=batch_size,shuffle=True),train|unlabeled,
                      folder/'v6_pretrained_backbone.pth',epochs=ssl_epochs,device=device,seed=seed+fold)
         model.ssl_subjects=sorted(train|unlabeled) if ssl_epochs else []
@@ -198,11 +203,25 @@ def run(records,partition,output,epochs=200,ssl_epochs=100,batch_size=4,seed=42,
         if synthetic_injection and probabilities['tremor_injection']==0: probabilities['tremor_injection']=.1
         donors=[tr for tr in train_records if tr.label==1 and tr.domain=='wacom'] if synthetic_injection else []
         aug=Augmenter(train,donors,probabilities,seed+fold)
-        train_ds=TrajectoryDataset(train_records,train,aug,seed+fold)
-        val_ds=TrajectoryDataset([tr for tr in clinical if tr.subject_id in valid],valid)
-        best=train_fold(model,DataLoader(train_ds,batch_size=batch_size,shuffle=True,num_workers=0),
+        train_ds=TrajectoryDataset(train_records,train,aug,seed+fold,contract=feature_contract)
+        val_ds=TrajectoryDataset([tr for tr in clinical if tr.subject_id in valid],valid,contract=feature_contract)
+        sampler=None
+        if expanded_manifest:
+            from src.data_loaders.synthetic_manifest_loader import SyntheticManifestDataset,CombinedTrainingDataset
+            synthetic_ds=SyntheticManifestDataset(expanded_manifest,train,contract=feature_contract)
+            assert set(synthetic_ds.provenance_subjects)<=train
+            if not 0<synthetic_fraction<=.5: raise ValueError('Synthetic fraction must be in (0,.5]')
+            if len(synthetic_ds):
+                from torch.utils.data import WeightedRandomSampler
+                nreal=len(train_ds); nsynth=len(synthetic_ds)
+                weights=np.r_[np.full(nreal,(1-synthetic_fraction)/nreal),np.full(nsynth,synthetic_fraction/nsynth)]
+                train_ds=CombinedTrainingDataset(train_ds,synthetic_ds)
+                sampler=WeightedRandomSampler(torch.as_tensor(weights),num_samples=int(np.ceil(nreal/(1-synthetic_fraction))),replacement=True)
+        best=train_fold(model,DataLoader(train_ds,batch_size=batch_size,shuffle=sampler is None,sampler=sampler,num_workers=0),
               DataLoader(val_ds,batch_size=batch_size,num_workers=0),folder,epochs=epochs,
               device=device,seed=seed+fold,probabilities=probabilities)
+        import shutil
+        shutil.copyfile(best,folder.parent/f'fold_{fold}_best.pth')
         manifest.append(dict(fold=fold,best_checkpoint=str(best),train_subjects=sorted(train),
                              validation_subjects=sorted(valid),holdout_subjects=sorted(holdout)))
         (output/'fold_manifest.json').write_text(json.dumps(manifest,indent=2))

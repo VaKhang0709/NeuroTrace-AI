@@ -44,6 +44,7 @@ class Trajectory:
             raise ValueError('Explicit unified schema and second timestamps required')
         fields = {k: v for k, v in record.items() if k in cls.__dataclass_fields__}
         fields['samples'] = np.asarray(fields['samples'], dtype=float)
+        if fields.get('updrs') is None: fields['updrs']=float('nan')
         return cls(**fields).validate()
 
 

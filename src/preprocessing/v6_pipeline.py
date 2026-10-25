@@ -16,6 +16,14 @@ FEATURES = ('x','y','pressure','vx','vy','speed','ax','ay','acceleration','jerk'
             'pressure_observed','azimuth_observed')
 CUTOFF = dict(wacom=15., touch=10., mouse=12., stylus=15., unknown=10.)
 BINARY_CHANNELS = (17, 18)
+BASE_CONTRACT='v6-bands19-v1'
+DWT_CONTRACT='v6-dwt19-v1'
+DWT_FEATURES=FEATURES[:13]+tuple(f'wavelet_db4_l{i}' for i in range(1,6))+('v5_proxy_p',)
+
+def feature_names(contract=BASE_CONTRACT):
+    if contract==BASE_CONTRACT: return FEATURES
+    if contract==DWT_CONTRACT: return DWT_FEATURES
+    raise ValueError('Unknown feature contract')
 
 
 def virtual_pressure(speed, radius):
@@ -44,7 +52,8 @@ def wavelet_band(a, lo, hi, fs=100.):
     return np.fft.irfft(spectrum,n=len(a))
 
 
-def features(trial):
+def features(trial,contract=BASE_CONTRACT):
+    feature_names(contract)
     trial.validate()
     a=trial.samples; t=a[:,2]-a[0,2]
     rate=1/np.median(np.diff(t))
@@ -89,20 +98,31 @@ def features(trial):
               np.gradient(p,.01),np.gradient(az,.01),wavelet_band(x,4,8),
               wavelet_band(y,4,8),wavelet_band(x,8,12),wavelet_band(y,8,12),
               np.full_like(x,has_pressure),np.full_like(x,has_azimuth)]
+    if contract==DWT_CONTRACT:
+        details=[]
+        coefficients=[pywt.wavedec(v,'db4',level=5,mode='symmetric') for v in (x,y)]
+        for level in range(1,6):
+            axes=[]
+            for coeff in coefficients:
+                selected=[np.zeros_like(c) for c in coeff]; selected[6-level]=coeff[6-level]
+                axes.append(pywt.waverec(selected,'db4',mode='symmetric')[:len(x)])
+            details.append(np.hypot(*axes))
+        channels=channels[:13]+details+[virtual_pressure(speed,np.hypot(x,y))]
     result=np.stack(channels)
     if not np.isfinite(result).all():
         raise ValueError('Nonfinite derived features')
     return result,dict(original_rate_hz=float(rate),cutoff_hz=cutoff,canonical_rate_hz=100)
 
 
-def normalize_windows(x):
+def normalize_windows(x,contract=BASE_CONTRACT):
+    feature_names(contract)
     """Channel-wise per-window population z-score; binary flags retained.
 
     Unlike V5's geometry/pressure/dt transforms this is V6-only. Constant signal
     channels become zero, binary availability is not z-scored away.
     """
     out=np.array(x,dtype=np.float64,copy=True)
-    continuous=[i for i in range(len(FEATURES)) if i not in BINARY_CHANNELS]
+    continuous=[i for i in range(19) if contract==DWT_CONTRACT or i not in BINARY_CHANNELS]
     values=out[:,continuous,:]
     out[:,continuous,:]=(values-values.mean(-1,keepdims=True))/(values.std(-1,keepdims=True)+1e-6)
     return out.astype(np.float32)
@@ -119,6 +139,6 @@ def window_features(values, stride=128):
     return np.stack([values[:,s:s+512] for s in starts])
 
 
-def transform(trial,stride=128):
-    values,qc=features(trial)
-    return normalize_windows(window_features(values,stride)),qc
+def transform(trial,stride=128,contract=BASE_CONTRACT):
+    values,qc=features(trial,contract)
+    return normalize_windows(window_features(values,stride),contract),qc
