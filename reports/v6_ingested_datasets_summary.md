@@ -24,3 +24,10 @@ Machine-recorded acquisition outcomes; no real sample counts inferred from faile
 ```
 
 Only acquisition is reported here. Raw units, participant IDs, labels and licensing still require source review.
+
+## Separate engineering scale test — NOT an ingested real dataset
+
+10002mock-source synthesized trajectories were materialized under`/tmp`
+(5001touch-target+5001mouse-target;3formula parents;0real humans).
+They are taggedMOCK_SOURCE and rejected by production training. Real recorded-source
+synthesis remains blocked. This count must not be added to real participant totals.

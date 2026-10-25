@@ -27,3 +27,21 @@ UNKNOWN; operator verification steps are in `docs/v6_external_datasets.md`.
 No pretrained weights or real ONNX/calibration download link can honestly be supplied.
 Synthetic/random smoke artifacts remain private under `/tmp`; no false model release.
 Default and tested dependencies: `requirements-v6.txt`, `requirements-v6-tested.txt`.
+
+## 2026-10-25 acquisition / >10000 / GPU notebook extension
+
+- The requested official UCI zip was attempted by `auto_downloader.py`;TLS/SSL EOF
+  blocked acquisition. No real dynamic trajectories are available locally.
+- Open DOI fetchers require reviewed DOI/direct-file/checksum/license metadata;
+  none was supplied or guessed. PhysioNet has no confirmed handwriting source here.
+- Generator scale was verified on10002**MOCK_SOURCE**trajectories under`/tmp`:
+  5001touch+5001mouse,3formula parents. This is NOT10002patients or real mobile PD.
+  Production runner rejects mock evidence;real-donor/HC-baseline synthesis is blocked.
+- GPU notebook and standalone runner are implemented and structurally/CPU tested,
+  but A100/T4/P100 hardware remains unavailable. No full real-data training occurred.
+- Requested detail-level channel layout is explicitly versioned`v6-dwt19-v1`;
+  earlier checkpoints use`v6-bands19-v1`.Both widths19do not imply compatibility.
+- Dynamic-time full15.78M random ONNX parity passed100cases(max1.073e-6);this is not
+  a trained V6 model. No real calibrated config or clinical operating threshold exists.
+- New guide:`docs/v6_gpu_execution_guide.md`;evidence:
+  `reports/v6_gpu_workflow_verification.md`.No new clinical performance claim.

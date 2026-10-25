@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 import torch
 from src.data_ingestion.auto_downloader import acquire
-from src.data_loaders.public_trajectory_parser import load_uci
+from src.data_loaders.public_trajectory_parser import load_uci,append_metadata_summary
 from src.data_loaders.schema import Trajectory
 from src.augmentation.tremor_injector import generate,eligible_rows
 from src.preprocessing.v6_pipeline import BASE_CONTRACT,DWT_CONTRACT,feature_names
@@ -36,7 +36,8 @@ def execute(args):
         records=[Trajectory.from_dict(r) for r in json.loads(Path(args.records).read_text())]
     if not any(r.source=='uci395' for r in records):
         records.extend(load_uci(Path(args.raw_root)/'uci_395',args.subject_map))
-    if any(r.source.startswith('mock') for r in records): raise ValueError('Mock records are forbidden in this production runner')
+    if any('mock' in r.source.lower() for r in records): raise ValueError('Mock records are forbidden in this production runner')
+    append_metadata_summary(records,'reports/v6_ingested_datasets_summary.md')
     partition=json.loads(Path(args.partition).read_text()); dev,_,_=validate_partition(records,partition)
     manifest=None
     if not args.skip_generation:
@@ -47,6 +48,9 @@ def execute(args):
         else:
             # Read all provenance rows and validate mocked evidence is absent.
             rows=eligible_rows(path,dev)
+            from src.augmentation.tremor_injector import digest
+            if any(not Path(r['path']).is_file() or digest(r['path'])!=r['sha256'] for r in rows):
+                raise ValueError('Existing generated file is missing or changed')
             if len(rows)<2*args.per_domain: raise ValueError('Existing manifest has fewer eligible variants than requested')
         manifest=str(path)
     # Private prepared snapshot makes download+local records reproducible for export.

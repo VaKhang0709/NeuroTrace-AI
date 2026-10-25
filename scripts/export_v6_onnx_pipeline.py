@@ -40,6 +40,7 @@ def validation_threshold(y,p):
 def export_pipeline(checkpoints,records,partition,output='models/v6',threshold_policy='validation_youden'):
     loaded=[load_model(p) for p in checkpoints]
     if not loaded: raise ValueError('Missing trained checkpoints')
+    if not np.isfinite([c['val_auc'] for _,c in loaded]).all(): raise ValueError('Invalid member validation AUC')
     best=int(np.argmax([c['val_auc'] for _,c in loaded])); model,metadata=loaded[best]
     contract=metadata.get('feature_contract',BASE_CONTRACT)
     holdout=set(partition['holdout_subjects']); train=set(metadata['training_subjects'])
@@ -63,12 +64,14 @@ def export_pipeline(checkpoints,records,partition,output='models/v6',threshold_p
     calibrated=np.interp(raw_probability,mapping['x'],mapping['y'])
     if threshold_policy not in ('fixed_0.5','validation_youden'): raise ValueError('Unknown threshold policy')
     threshold=.5 if threshold_policy=='fixed_0.5' else validation_threshold(y,calibrated)
+    if {tr.subject_id for tr in records if tr.subject_id in train}!=train:
+        raise ValueError('Incomplete training-parent records for channel statistics')
     mean,std,n=training_statistics(records,train,contract)
     output=Path(output); output.mkdir(parents=True,exist_ok=True)
     onnx_path=output/'neurotrace_v6_tremorformer.onnx'
     parity=export_member(checkpoints[best],onnx_path,(calibration['X'],calibration['domain']),dynamic_sequence=True)
     config=dict(version='v6-gpu-export-1',feature_contract=contract,feature_names=feature_names(contract),
-                shape=['batch',19,'sequence_length'],reference_sequence_length=512,
+                shape=['batch',19,'sequence_length'],reference_sequence_length=512,minimum_engineering_sequence_length=64,
                 parity_test_sequence_lengths=[256,384,512,768],canonical_rate_hz=100,
                 mean=mean.tolist(),scale=np.where(std>1e-6,std,1).tolist(),measured_std=std.tolist(),
                 statistics_samples=n,statistics_role='TRAIN_ONLY_DIAGNOSTICS_NOT_AN_ADDITIONAL_INPUT_TRANSFORM',

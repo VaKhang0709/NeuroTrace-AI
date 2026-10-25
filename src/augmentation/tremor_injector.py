@@ -75,7 +75,7 @@ def generate(records,allowed_subjects,output='data/processed/v6_synthetic_10k',
     recipients=[tr for tr in records if tr.subject_id in allowed and tr.label==0 and tr.domain in ('touch','mouse') and not tr.synthetic]
     if not donors or not recipients: raise ValueError('Missing recorded Wacom-PD donors or touch/mouse HC baselines; no data invented')
     if not mock and any(tr.source!='uci395' for tr in donors): raise ValueError('Production donor must be reviewed UCI395 source')
-    if not mock and any(tr.source.startswith('mock') for tr in records): raise ValueError('Mock sources forbidden in production generation')
+    if not mock and any('mock' in tr.source.lower() for tr in records): raise ValueError('Mock sources forbidden in production generation')
     prepared=[(d,extract_tremor(d)) for d in donors]
     baselines=[(r,canonical(r)) for r in recipients]
     root=Path(output); root.mkdir(parents=True,exist_ok=True)

@@ -9,3 +9,4 @@ onnxruntime>=1.18,<2
 matplotlib>=3.8,<4
 tensorboard>=2.16,<3
 pytest>=8,<10
+nbformat>=5.10,<6

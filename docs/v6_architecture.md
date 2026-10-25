@@ -90,3 +90,13 @@ Five full ONNX models are about300MB total; web-client feasibility is UNKNOWN an
 likely costly. Single-member deployment is available; distillation is not
 implemented or claimed. Exported device ID is a second int64 input. Final
 patient classification is not a calibrated clinical probability by architecture.
+
+## GPU-workflow extension (2026-10-25)
+
+`v6-dwt19-v1` is now available in addition to the original band/availability layout.
+It uses13base signals +five reconstructed db4 detail vector magnitudes +proxy
+pressure. All19are per-window z-scored. This is explicitly NOT interchangeable
+with`v6-bands19-v1`. Learned positions interpolate and sinusoids extend dynamically;
+explicit attention preserves MHA parameter names while enabling dynamic-time ONNX.
+Reference training remains512steps. See `docs/v6_gpu_execution_guide.md` for the
+contract definitions,normalization metadata and tested length boundaries.

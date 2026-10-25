@@ -457,3 +457,32 @@ Keep credentials,subject manifests and trajectories private/ignored. Synthetic
 cross-domain tremor injection defaults OFF and is an explicitly flagged ablation,
 not a substitute for real mobile PD observations. No V5 threshold change or retrain
 is part of V6 development.
+
+### V6 automated acquisition → anchored synthesis → GPU workflow
+
+```text
+Official UCI ZIP / authorized local fallback / reviewed open DOI mirrors
+                         + private real HC touch/mouse streams
+                                      │
+             explicit units + locked HUMAN parent partition
+                                      │
+          4–8Hz donor overlay →10002variants (5001/domain)
+           donor AND recipient lineage retained;not new people
+                                      │
+           per-fold BOTH-parent filtering + real-only validation
+                                      │
+            versioned19channels →15.78M TremorFormer (5folds)
+                                      │
+       dynamic ONNX + member-validation calibration →locked REAL holdout
+```
+
+- [Colab/Kaggle GPU notebook](notebooks/v6_gpu_beast_training.ipynb)
+- [Tech Lead execution guide](docs/v6_gpu_execution_guide.md)
+- [Acquisition and scale-test evidence](reports/v6_gpu_workflow_verification.md)
+
+**Current boundary:** UCI download was TLS-blocked here;recorded-source synthesis
+and GPU clinical training remain blocked.10002materialized variants were verified
+using **mock sources only**,kept outside Git and rejected by the production runner.
+The full random-weight model passed dynamic-time100tensor ONNX parity(max1.073e-6),
+which is NOT disease-detection performance. No pretrained V6 release or >0.97AUC
+claim is made. Preserve V5 and keep PR#4 open for manual Tech Lead review.
