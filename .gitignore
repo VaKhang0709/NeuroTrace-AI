@@ -275,3 +275,6 @@ Thumbs.db
 /secrets/
 *.npz
 *.npy
+
+# Private downloads from the connected Drive (teacher, metadata, recordings).
+/google_drive/
