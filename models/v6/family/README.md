@@ -1,3 +1,39 @@
+# Automatic teacher recovery update — 2026-11-05
+
+The latest explicit instruction authorizes a NEW teacher when the original runtime
+files are lost. The notebook no longer fails for missing checkpoint/partition/records.
+It automatically downloads real UCI395 (or uses LOCAL_UCI),trains ONE full grouped
+PRO member for50epochs (not5x50),then continues NANO40 + BASE40. Batch8 throughout,
+synthetic=False,AMP,cached19channel features,no online raw augmentation/SSL in recovery.
+No samples/epochs are capped. Existing surviving original partitions are preserved;
+if the partition is lost,a new seed42subject-stratified recovery split is clearly
+labelled NEW lineage,NOT restoration of the original experiment/holdout.
+
+All recovered inputs + matching NEW ONNX/scaler are saved under
+`NEUROTRACE/v6_production/family/teacher_recovery_v1/`:
+`fold_0_best.pth`,`partition.json`,`prepared_records.json`,ONNX/scaler,
+`teacher_epochs.csv`,`lineage.json`,`recovery_manifest.json`.
+`family/teacher_bundle.json` points the remaining cells at that matched bundle.
+Original production exports are NEVER overwritten or mixed with new weights.
+Hashes gate one-time reuse. If50epochs finish but export is interrupted,the saved
+complete checkpoint is reused for export,not retrained. Records/partition are saved
+BEFORE training. Large optimizer/top3 writes go to local SSD;only compact final
+weights/identity metadata and completion hashes go to Drive. The family directory
+is created automatically. No Drive credentials are embedded.
+
+35–40minutes is an unmeasured T4 target. The notebook has a40minute wall-time guard,
+replacing the earlier~1CU/student-only allowance;setup/IO/export also consume time.
+If the target cannot be met,it stops rather than faking completion;the completed
+teacher survives for a later run. No CUDA/T4 training was executed in this sandbox.
+Wacom-only training is not clinically established touchscreen PD sensitivity.
+
+Recovery helper and notebook JSON/AST were checked with7filesystem/orchestration
+unit tests (no mocked training represented as real training). The earlier57test
+family suite belongs to the previous implementation verification;it was NOT rerun
+in this refreshed dependency-free sandbox. V5 remains unchanged;PR#4 remains OPEN.
+
+---
+
 # TremorFormer family — DWT19 only
 
 **Research artifacts; not clinically established touchscreen-PD detection.**

@@ -1,3 +1,15 @@
+# Latest recovery authorization — 2026-11-05
+
+Lost teacher internals no longer cause an immediate notebook FileNotFoundError.
+Automatic real-UCI50epoch PRO bootstrap saves a NEW versioned matched Drive bundle,
+then runs NANO40/BASE40,batch8,synthetic=False. Original exports preserved;surviving
+partitions reused,lost partitions replaced only as an explicitly NEW recovery run.
+Seven targeted recovery tests pass;full T4 run and35–40minute timing remain
+unverified (no CUDA here). See `reports/v6_family_verification.md` latest section.
+The previous missing-input blocker below is superseded by this automatic recovery.
+
+---
+
 # Current task: three-tier distillation — 2026-11-05
 
 **Trained-family acceptance BLOCKED.** Work remains on
