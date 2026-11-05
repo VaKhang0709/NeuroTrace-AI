@@ -115,6 +115,7 @@ def validation(model,loader,parents,device):
 
 def run(args):
     start=time.monotonic(); seed_all(args.seed)
+    if args.temperature<=0 or not 0<=args.alpha<=1: raise ValueError('Invalid KD temperature/alpha')
     if args.epochs<1 or args.batch_size<1 or args.device_weight<0: raise ValueError('Invalid training settings')
     records,part,meta,context=load_context(args.records,args.partition,args.scaler,args.teacher_metadata,args.teacher_onnx)
     context['records_sha256']=sha256(args.records)
@@ -150,6 +151,8 @@ def run(args):
                     raise RuntimeError('Time/CU budget reached; incomplete students NOT accepted/exported')
                 epoch_start=time.monotonic(); model.train(); losses=[]
                 for x,d,y,soft_batch in train_loader:
+                    if args.max_seconds and time.monotonic()-start+args.reserve_seconds>args.max_seconds:
+                        raise RuntimeError('Time/CU guard stopped an incomplete epoch; no accepted artifacts')
                     x,d,y,soft_batch=[v.to(device) for v in (x,d,y,soft_batch)]
                     optimizer.zero_grad(set_to_none=True)
                     with torch.autocast(device_type='cuda' if amp else 'cpu',enabled=amp):

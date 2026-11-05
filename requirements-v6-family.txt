@@ -1,0 +1,2 @@
+-r requirements-v6-gpu.txt
+onnxconverter-common>=1.14,<2
