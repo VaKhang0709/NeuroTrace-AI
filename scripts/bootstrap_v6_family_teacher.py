@@ -114,7 +114,7 @@ def recover(production,recovery,local_uci,work):
         # Resample/derive19channels ONCE, not once/window/epoch. Holdout untouched.
         train_features=windows(records,train);valid_features=windows(records,valid)
         class Cached(Dataset):
-            def __init__(self,features): self.data=features;self.subjects=sorted(set(features['subject']))
+            def __init__(self,features): self.data=features;self.subjects=sorted({str(s) for s in features['subject']})
             def __len__(self): return len(self.data['X'])
             def __getitem__(self,i):
                 f=self.data

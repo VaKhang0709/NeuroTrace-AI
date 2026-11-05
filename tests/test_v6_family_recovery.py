@@ -65,6 +65,7 @@ class RecoveryTests(unittest.TestCase):
         source=Path('scripts/bootstrap_v6_family_teacher.py').read_text()
         self.assertIn('epochs=50,patience=51',source)
         self.assertIn('batch_size=8',source)
+        self.assertIn("self.subjects=sorted({str(s) for s in features['subject']})",source)
         self.assertIn("family/'teacher_recovery_v1'",source)
         self.assertIn("recovery_complete=True,epochs_completed=50",source)
         self.assertIn("export_pipeline([ck_path]",source)
