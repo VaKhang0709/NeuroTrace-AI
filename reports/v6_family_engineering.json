@@ -1,0 +1,190 @@
+{
+  "date": "2026-11-05",
+  "status": "ENGINEERING ONLY; DISTILLATION AND REAL LOCKED HOLDOUT BLOCKED",
+  "parameters": {
+    "nano": 718404,
+    "base": 3648400,
+    "pro": 15779536
+  },
+  "teacher": {
+    "scope": "Downloaded production PRO: load/signature/CPU latency ONLY, NOT holdout/PyTorch parity",
+    "bytes": 63112269,
+    "sha256": "0593c9c17470f7868f70aa2bc5de6fa51e2dfb27d067bfd15c83648cf28424b4",
+    "scaler_sha256": "5122784b0f9b53120d50d1d1eb5bc028fed61cda1ba12e43d3d4c811e01fd392",
+    "signature": {
+      "inputs": [
+        [
+          "trajectory",
+          "tensor(float)",
+          [
+            "batch",
+            19,
+            "sequence_length"
+          ]
+        ],
+        [
+          "device_id",
+          "tensor(int64)",
+          [
+            "batch"
+          ]
+        ]
+      ],
+      "outputs": [
+        [
+          "logits",
+          "tensor(float)",
+          [
+            "batch"
+          ]
+        ]
+      ]
+    },
+    "latency": {
+      "median_ms": 34.481418500000004,
+      "p95_ms": 39.2831207,
+      "mean_ms": 35.050261969999994,
+      "repeats": 100,
+      "warmup": 20,
+      "threads": 1,
+      "shape": [
+        1,
+        19,
+        512
+      ]
+    }
+  },
+  "untrained_students": {
+    "nano": {
+      "scope": "RANDOM WEIGHTS,NOT DISTILLED/RELEASE/CLINICAL EVIDENCE",
+      "bytes": 1218714,
+      "sha256": "963acb964021c77be3b447123ab53e23d5ffcb2e0abc6aef271086f0cc653bbc",
+      "signature": {
+        "inputs": [
+          [
+            "trajectory",
+            "tensor(float)",
+            [
+              "batch",
+              19,
+              "sequence_length"
+            ]
+          ],
+          [
+            "device_id",
+            "tensor(int64)",
+            [
+              "batch"
+            ]
+          ]
+        ],
+        "outputs": [
+          [
+            "logits",
+            "tensor(float)",
+            [
+              "batch"
+            ]
+          ]
+        ]
+      },
+      "fp32_parity": {
+        "tensors": 100,
+        "recorded_validation_tensors": 9,
+        "max_logit_error": 3.2782554626464844e-07,
+        "tolerance": 1e-05,
+        "passed": true,
+        "reference": "PyTorch raw logits"
+      },
+      "compressed_parity": {
+        "tensors": 100,
+        "recorded_validation_tensors": 9,
+        "max_logit_error": 0.007441267371177673,
+        "tolerance": 0.1,
+        "passed": true,
+        "reference": "PyTorch raw logits"
+      },
+      "host_cpu_latency": {
+        "median_ms": 1.9707195,
+        "p95_ms": 2.0208727,
+        "mean_ms": 1.9679403400000002,
+        "repeats": 100,
+        "warmup": 20,
+        "threads": 1,
+        "shape": [
+          1,
+          19,
+          512
+        ]
+      },
+      "recorded_input_scope": "PUBLIC RAW-FORMAT TEST FIXTURES ONLY; NOT AN ORIGINAL MEMBER-VALIDATION OR LOCKED-HOLDOUT EVALUATION"
+    },
+    "base": {
+      "scope": "RANDOM WEIGHTS,NOT DISTILLED/RELEASE/CLINICAL EVIDENCE",
+      "bytes": 7333240,
+      "sha256": "99e36c13b505c2354099cafcee58d4cd699fe3d84f2f97d796c5e9122bd94205",
+      "signature": {
+        "inputs": [
+          [
+            "trajectory",
+            "tensor(float)",
+            [
+              "batch",
+              19,
+              "sequence_length"
+            ]
+          ],
+          [
+            "device_id",
+            "tensor(int64)",
+            [
+              "batch"
+            ]
+          ]
+        ],
+        "outputs": [
+          [
+            "logits",
+            "tensor(float)",
+            [
+              "batch"
+            ]
+          ]
+        ]
+      },
+      "fp32_parity": {
+        "tensors": 100,
+        "recorded_validation_tensors": 9,
+        "max_logit_error": 4.470348358154297e-07,
+        "tolerance": 1e-05,
+        "passed": true,
+        "reference": "PyTorch raw logits"
+      },
+      "compressed_parity": {
+        "tensors": 100,
+        "recorded_validation_tensors": 9,
+        "max_logit_error": 0.000965118408203125,
+        "tolerance": 0.01,
+        "passed": true,
+        "reference": "PyTorch raw logits"
+      },
+      "host_cpu_latency": {
+        "median_ms": 9.49678,
+        "p95_ms": 9.97534735,
+        "mean_ms": 9.52559132,
+        "repeats": 100,
+        "warmup": 20,
+        "threads": 1,
+        "shape": [
+          1,
+          19,
+          512
+        ]
+      },
+      "recorded_input_scope": "PUBLIC RAW-FORMAT TEST FIXTURES ONLY; NOT AN ORIGINAL MEMBER-VALIDATION OR LOCKED-HOLDOUT EVALUATION"
+    }
+  },
+  "host": "Linux-6.1.158+-x86_64-with-glibc2.36",
+  "torch": "2.5.1+cu124",
+  "cuda_available": false
+}

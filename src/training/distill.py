@@ -89,12 +89,20 @@ def _sync(device):
 
 
 def profile(model,train_loader,val_loader,device):
-    """Development-only timing, no optimizer update, never inspect holdout."""
+    """Development-only probe matching AMP/optimizer work; probe is discarded.
+
+    Never updates the teacher or inspects holdout. No probe weights are exported.
+    """
     model.to(device); model.train(); costs=[]
+    amp=str(device).startswith('cuda'); scaler=torch.amp.GradScaler('cuda',enabled=amp)
+    optimizer=torch.optim.AdamW(model.parameters(),lr=3e-4,weight_decay=.05)
     for i,(x,d,y,soft) in enumerate(train_loader):
         x,d,y,soft=[v.to(device) for v in (x,d,y,soft)]; _sync(device); start=time.perf_counter()
-        out=model(x,d); loss=distillation_loss(out['pd_logits'],soft,y)+.1*F.cross_entropy(out['device_logits'],d)
-        loss.backward(); model.zero_grad(set_to_none=True); _sync(device)
+        optimizer.zero_grad(set_to_none=True)
+        with torch.autocast(device_type='cuda' if amp else 'cpu',enabled=amp):
+            out=model(x,d); loss=distillation_loss(out['pd_logits'],soft,y)+.1*F.cross_entropy(out['device_logits'],d)
+        scaler.scale(loss).backward(); scaler.unscale_(optimizer); nn.utils.clip_grad_norm_(model.parameters(),1.)
+        scaler.step(optimizer); scaler.update(); _sync(device)
         if i: costs.append(time.perf_counter()-start)
         if i>=3: break
     model.eval(); x,d,_=next(iter(val_loader)); x=x.to(device); d=d.to(device)
@@ -117,6 +125,8 @@ def run(args):
     start=time.monotonic(); seed_all(args.seed)
     if args.temperature<=0 or not 0<=args.alpha<=1: raise ValueError('Invalid KD temperature/alpha')
     if args.epochs<1 or args.batch_size<1 or args.device_weight<0: raise ValueError('Invalid training settings')
+    if args.reserve_seconds<0 or args.max_seconds<=args.reserve_seconds:
+        raise ValueError('A positive bounded time budget with export reserve is required')
     records,part,meta,context=load_context(args.records,args.partition,args.scaler,args.teacher_metadata,args.teacher_onnx)
     context['records_sha256']=sha256(args.records)
     if args.device.startswith('cuda') and not torch.cuda.is_available(): raise RuntimeError('CUDA unavailable; no claimed T4 run')

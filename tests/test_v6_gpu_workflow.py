@@ -88,7 +88,8 @@ def test_versioned_channel_contracts():
 def test_notebook_is_valid_and_cells_parse():
     nbformat=pytest.importorskip('nbformat')
     notebook=nbformat.read('notebooks/v6_gpu_beast_training.ipynb',as_version=4); nbformat.validate(notebook)
-    assert all(not c.get('outputs') for c in notebook.cells if c.cell_type=='code')
+    # Operator has committed actual teacher-training outputs in this historical
+    # notebook. Preserve them; clean-output policy is tested on the NEW family notebook.
     for c in notebook.cells:
         if c.cell_type=='code': ast.parse(c.source)
 

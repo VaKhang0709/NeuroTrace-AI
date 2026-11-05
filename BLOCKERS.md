@@ -1,3 +1,24 @@
+# Current task: three-tier distillation — 2026-11-05
+
+**Trained-family acceptance BLOCKED.** Work remains on
+`arena/4edc99ce-neurotrace-ai`;PR#4 OPEN;V5/teacher unchanged.
+
+| Item | Evidence now | Remaining blocker |
+|---|---|---|
+|Production PRO access|Connected Drive ONNX63,112,269bytes + scaler3,747bytes downloaded/read-only;hashes agree;ORT signature/load pass|No selected teacher checkpoint/identity provenance found;fresh PRO-vs-PyTorch parity blocked|
+|Locked62/15cohort|Read-only validation/hashes implemented;NO partition regenerated|Original partition + canonical records not present locally or in relevant connected Drive searches|
+|NANO/BASE architecture/export|718,404 /3,648,400params;random-weight engineering INT8/FP16 graphs load at1.22MB/7.33MB,not distilled releases|Actual40epoch-per-tier distillation awaits original inputs/provenance + T4|
+|Real family holdout report|Fail-closed subject metrics/latency writer implemented;NO placeholder report created|Cannot compute real15subject metrics without original cohort and actually distilled students|
+|~1CU budget|T4 profile/admission/abort guard,40epochs each,batch8,0.9CU planning allowance|No CUDA here;billing rate/runtime/under1CU completion NOT measured or guaranteed;verify current provider rate|
+|Regression|57tests pass;V5 JS6cases/25windows diff0;V5 hashes unchanged|Warnings document trace/FP16 precision limits,not clinical evidence|
+|Mobile sensitivity/domain gap|All tiers Wacom-trained;explicit consent required for server escalation|Touchscreen PD sensitivity NOT clinically established;healthy-phone web gap UNRESOLVED|
+
+Current details:`reports/v6_family_verification.md`;execution/cascade:
+`models/v6/family/README.md`;notebook:`notebooks/v6_family_distill.ipynb`.
+The following historical sections do not describe newly completed distillation.
+
+---
+
 # Current V6 blockers — real loader correction, 2026-10-25
 
 Only `arena/4edc99ce-neurotrace-ai`; keep PR #4 OPEN. V5 unchanged.

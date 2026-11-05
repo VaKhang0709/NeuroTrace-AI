@@ -484,3 +484,22 @@ mobile-PD cohort,no authorized real touch/mouse HC baseline for synthesis.
 Wacom-only UCI cannot validate mobile sensitivity;healthy-phone high-PD web behavior
 remains an unresolved domain gap. No clinical/SOTA or deployable V6 release is
 claimed. Preserve V5/threshold0.50 and keep PR#4 OPEN for Tech Lead review.
+
+### V6 NANO / BASE / PRO family — implementation,not a release
+
+Shared **v6-dwt19-v1** features,byte-identical production normalization,float32
+`trajectory` + int64 `device_id` → raw `logits`;frontend extractor unchanged.
+Exact parameters:718,404NANO /3,648,400BASE /15,779,536PRO. Frozen teacher binary KL
++ BCE;original teacher subject groups only,no regenerated locked partition.
+NANO mixed dynamic INT8 and BASE FP16 export/size gates are implemented;PRO copied
+unchanged. **Random-weight engineering files are NOT distilled production models.**
+
+- [Family/cascade/consent and exact commands](models/v6/family/README.md)
+- [T4 distillation notebook](notebooks/v6_family_distill.ipynb)
+- [Actual engineering evidence and acceptance blockers](reports/v6_family_verification.md)
+
+Connected Drive supplied PRO ONNX/scaler,but no original partition/records or
+selected checkpoint/provenance. Real40epoch student training and the requested
+real15subject report remain BLOCKED,not replaced with fabricated metrics. No CUDA
+or measured under1CU run here. All tiers Wacom-trained;touchscreen PD sensitivity
+is NOT clinically established. Keep PR#4 OPEN and V5 unchanged.

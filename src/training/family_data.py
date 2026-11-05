@@ -27,6 +27,15 @@ def validate_scaler(path):
     return config
 
 
+def validate_teacher_groups(metadata,dev,holdout,unlabeled=()):
+    dev,holdout,unlabeled=map(set,(dev,holdout,unlabeled))
+    train=set(metadata['training_subjects']); valid=set(metadata['validation_subjects']); ssl=set(metadata.get('ssl_subjects',[]))
+    if (not train or not valid or train&valid or (train|valid)!=dev or (train|valid|ssl)&holdout
+        or valid&ssl or not ssl<=(train|unlabeled)):
+        raise ValueError('Teacher/student parent leakage or incomplete development provenance')
+    return train,valid
+
+
 def load_context(records_path,partition_path,scaler_path,metadata_path,teacher_onnx):
     # Missing inputs intentionally fail; no UCI downloader, split constructor or mock fallback here.
     config=validate_scaler(scaler_path)
@@ -53,9 +62,9 @@ def load_context(records_path,partition_path,scaler_path,metadata_path,teacher_o
             raise ValueError('ONNX-only teacher provenance must bind BOTH original partition bytes and teacher hash')
     else: metadata=torch.load(path,map_location='cpu',weights_only=True)
     if metadata.get('feature_contract')!=DWT_CONTRACT: raise ValueError('Teacher provenance needs DWT19 contract')
-    train=set(metadata['training_subjects']); valid=set(metadata['validation_subjects']); ssl=set(metadata.get('ssl_subjects',[]))
-    if (not train or not valid or train&valid or train|valid!=dev or (train|valid|ssl)&holdout
-        or valid&ssl or not ssl<=train|unlabeled): raise ValueError('Teacher/student parent leakage or incomplete development provenance')
+    train,valid=validate_teacher_groups(metadata,dev,holdout,unlabeled)
+    if len(valid)!=config.get('calibration',{}).get('validation_subject_count'):
+        raise ValueError('Teacher validation count differs from production calibration provenance')
     for ids in (train,valid,holdout):
         if {labels[p] for p in ids}!={0,1}: raise ValueError('Each clinical subset needs both diagnoses')
     context=dict(partition_sha256=sha256(partition_path),scaler_sha256=sha256(scaler_path),
