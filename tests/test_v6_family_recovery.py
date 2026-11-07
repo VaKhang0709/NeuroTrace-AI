@@ -61,6 +61,23 @@ class RecoveryTests(unittest.TestCase):
         self.assertIn('BATCH_SIZE = 8',text);self.assertIn('USE_SYNTHETIC=False',text)
         self.assertLess(text.index('run_live(bootstrap)'),text.index('load_context(RECORDS'))
         self.assertLess(text.index('run_live(bootstrap)'),text.index("'-m','src.training.distill'"))
+    def test_notebook_budget_is_five_cu_and_two_hours_forwarded_to_trainer(self):
+        nb=json.loads(Path('notebooks/v6_family_distill.ipynb').read_text())
+        values={};text=''
+        for cell in nb['cells']:
+            if cell['cell_type']!='code':continue
+            code=''.join(cell['source']);text+=code+'\n'
+            for node in ast.parse(code).body:
+                if isinstance(node,ast.Assign):
+                    for target in node.targets:
+                        if isinstance(target,ast.Name) and target.id in ('CU_ALLOWANCE','WALL_SECONDS'):
+                            values[target.id]=ast.literal_eval(node.value)
+        self.assertEqual(values['CU_ALLOWANCE'],5.0)
+        self.assertEqual(values['WALL_SECONDS'],7200)
+        self.assertIn('remaining=int(WALL_SECONDS-(time.monotonic()-JOB_START))',text)
+        self.assertIn("'--max-seconds',str(remaining)",text)
+        self.assertNotIn('WALL_SECONDS=40*60',text)
+
     def test_teacher_is_full50_and_outputs_versioned(self):
         source=Path('scripts/bootstrap_v6_family_teacher.py').read_text()
         self.assertIn('epochs=50,patience=51',source)
